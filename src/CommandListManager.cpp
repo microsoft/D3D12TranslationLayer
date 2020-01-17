@@ -160,9 +160,6 @@ namespace D3D12TranslationLayer
             GetD3D12CommandListType(m_type)
             );
 
-        // Reset the command allocator (indicating that the driver can recycle memory associated with it)
-        ThrowFailure(m_pCommandAllocator->Reset());
-
         // Create or recycle a command list
         if (m_pCommandList)
         {
@@ -284,6 +281,9 @@ namespace D3D12TranslationLayer
     //----------------------------------------------------------------------------------------------------------------------------------
     void CommandListManager::ResetCommandList()
     {
+        // Reset the command allocator (indicating that the driver can recycle memory associated with it)
+        ThrowFailure(m_pCommandAllocator->Reset());
+
         static_assert(static_cast<UINT>(COMMAND_LIST_TYPE::MAX_VALID) == 3u, "CommandListManager::ResetCommandList must support all command list types.");
         switch (m_type)
         {
