@@ -16,7 +16,7 @@ namespace D3D12TranslationLayer
         Init();
     }
 
-    Shader::Shader(ImmediateContext* pParent, const BYTE* byteCode, SIZE_T bytecodeSize)
+    Shader::Shader(ImmediateContext* pParent, const void* byteCode, SIZE_T bytecodeSize)
         : DeviceChild(pParent)
         , m_Desc({ byteCode, bytecodeSize })
     {

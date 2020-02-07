@@ -112,13 +112,16 @@ namespace D3D12TranslationLayer
         if (FAILED(hr))
         {
             MICROSOFT_TELEMETRY_ASSERT(hr != E_INVALIDARG);
-            TraceLoggingWrite(g_hTracelogging,
-                              "PSOCreationFailure",
-                              TraceLoggingInt32(0, "SchemaVersion"),
-                              TraceLoggingHResult(hr, "HResult"),
-                              TraceLoggingInt32(Type, "PSOType"),
-                              TraceLoggingKeyword(MICROSOFT_KEYWORD_MEASURES),
-                              TraceLoggingLevel(TRACE_LEVEL_ERROR));
+            if (g_hTracelogging)
+            {
+                TraceLoggingWrite(g_hTracelogging,
+                                  "PSOCreationFailure",
+                                  TraceLoggingInt32(0, "SchemaVersion"),
+                                  TraceLoggingHResult(hr, "HResult"),
+                                  TraceLoggingInt32(Type, "PSOType"),
+                                  TraceLoggingKeyword(MICROSOFT_KEYWORD_MEASURES),
+                                  TraceLoggingLevel(TRACE_LEVEL_ERROR));
+            }
         }
         ThrowFailure(hr); // throw( _com_error )
 

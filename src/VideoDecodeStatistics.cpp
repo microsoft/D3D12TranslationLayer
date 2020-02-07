@@ -184,10 +184,13 @@ namespace D3D12TranslationLayer
                         pStatus->bStatus = VideoDecodeStatusMap[pD3d12VideoStats->Status];
                         pStatus->wNumMbsAffected = (USHORT)pD3d12VideoStats->NumMacroblocksAffected;
 
-                        TraceLoggingWrite(g_hTracelogging,
-                            "GetStatus - StatusReportFeedbackNumber",
-                            TraceLoggingPointer(pVideoDecoder, "pID3D12Decoder"),
-                            TraceLoggingValue(pStatus->StatusReportFeedbackNumber, "statusReportFeedbackNumber"));
+                        if (g_hTracelogging)
+                        {
+                            TraceLoggingWrite(g_hTracelogging,
+                                "GetStatus - StatusReportFeedbackNumber",
+                                TraceLoggingPointer(pVideoDecoder, "pID3D12Decoder"),
+                                TraceLoggingValue(pStatus->StatusReportFeedbackNumber, "statusReportFeedbackNumber"));
+                        }
                     } break;
 
                     case VIDEO_DECODE_PROFILE_TYPE_HEVC:
@@ -202,10 +205,13 @@ namespace D3D12TranslationLayer
                         pStatus->bStatus = VideoDecodeStatusMap[pD3d12VideoStats->Status];
                         pStatus->wNumMbsAffected = (USHORT)pD3d12VideoStats->NumMacroblocksAffected;
 
-                        TraceLoggingWrite(g_hTracelogging,
-                            "GetStatus - StatusReportFeedbackNumber",
-                            TraceLoggingPointer(pVideoDecoder, "pID3D12Decoder"),
-                            TraceLoggingValue(pStatus->StatusReportFeedbackNumber, "statusReportFeedbackNumber"));
+                        if (g_hTracelogging)
+                        {
+                            TraceLoggingWrite(g_hTracelogging,
+                                "GetStatus - StatusReportFeedbackNumber",
+                                TraceLoggingPointer(pVideoDecoder, "pID3D12Decoder"),
+                                TraceLoggingValue(pStatus->StatusReportFeedbackNumber, "statusReportFeedbackNumber"));
+                        }
                     } break;
 
                     case VIDEO_DECODE_PROFILE_TYPE_VP9:
@@ -221,10 +227,13 @@ namespace D3D12TranslationLayer
                         pStatus->bStatus = VideoDecodeStatusMap[pD3d12VideoStats->Status];
                         pStatus->wNumMbsAffected = (USHORT)pD3d12VideoStats->NumMacroblocksAffected;
 
-                        TraceLoggingWrite(g_hTracelogging,
-                            "GetStatus - StatusReportFeedbackNumber",
-                            TraceLoggingPointer(pVideoDecoder, "pID3D12Decoder"),
-                            TraceLoggingValue(pStatus->StatusReportFeedbackNumber, "statusReportFeedbackNumber"));
+                        if (g_hTracelogging)
+                        {
+                            TraceLoggingWrite(g_hTracelogging,
+                                "GetStatus - StatusReportFeedbackNumber",
+                                TraceLoggingPointer(pVideoDecoder, "pID3D12Decoder"),
+                                TraceLoggingValue(pStatus->StatusReportFeedbackNumber, "statusReportFeedbackNumber"));
+                        }
                     } break;
 
                     case VIDEO_DECODE_PROFILE_TYPE_VC1:
@@ -238,10 +247,13 @@ namespace D3D12TranslationLayer
                         pStatus->bStatus = VideoDecodeStatusMap[pD3d12VideoStats->Status];
                         pStatus->wNumMbsAffected = (USHORT)pD3d12VideoStats->NumMacroblocksAffected;
 
-                        TraceLoggingWrite(g_hTracelogging,
-                            "GetStatus - StatusReportFeedbackNumber",
-                            TraceLoggingPointer(pVideoDecoder, "pID3D12Decoder"),
-                            TraceLoggingValue(pStatus->StatusReportFeedbackNumber, "statusReportFeedbackNumber"));                            
+                        if (g_hTracelogging)
+                        {
+                            TraceLoggingWrite(g_hTracelogging,
+                                "GetStatus - StatusReportFeedbackNumber",
+                                TraceLoggingPointer(pVideoDecoder, "pID3D12Decoder"),
+                                TraceLoggingValue(pStatus->StatusReportFeedbackNumber, "statusReportFeedbackNumber"));
+                        }
                     } break;
 
                     case VIDEO_DECODE_PROFILE_TYPE_MPEG2:           // TODO: can't find info about this one, Srinath is checking.

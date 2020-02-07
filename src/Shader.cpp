@@ -14,4 +14,11 @@ namespace D3D12TranslationLayer
         , m_Desc({ m_Dxil, dxilSize })
     {
     }
+
+    Shader::Shader(ImmediateContext* pParent, const void* byteCode, SIZE_T bytecodeSize, SShaderDecls PrecomputedDecls)
+        : DeviceChild(pParent)
+        , SShaderDecls(std::move(PrecomputedDecls))
+        , m_Desc({ byteCode, bytecodeSize })
+    {
+    }
 };

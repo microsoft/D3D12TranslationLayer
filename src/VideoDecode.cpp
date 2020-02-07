@@ -784,10 +784,13 @@ namespace D3D12TranslationLayer
         GetStatusReportFeedbackNumber(/*_Out_*/statusReportFeedbackNumber, /*_Out_*/CurrPic, /*_Out_*/field_pic_flag);  // throw( _com_error )
         m_decodingStatus.EndQuery(statusReportFeedbackNumber, CurrPic, field_pic_flag);  // throw( _com_error )
 
-        TraceLoggingWrite(g_hTracelogging,
+        if (g_hTracelogging)
+        {
+            TraceLoggingWrite(g_hTracelogging,
                 "Decode - StatusReportFeedbackNumber",
                 TraceLoggingPointer(m_spVideoDecoder->GetForImmediateUse(), "pID3D12Decoder"),
                 TraceLoggingValue(statusReportFeedbackNumber, "statusReportFeedbackNumber"));
+        }
 
         m_pParent->SubmitCommandList(COMMAND_LIST_TYPE::VIDEO_DECODE);
     }
