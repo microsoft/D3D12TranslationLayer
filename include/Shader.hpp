@@ -40,10 +40,15 @@ namespace D3D12TranslationLayer
     {
     public:
 #ifdef SUPPORTS_DXBC_PARSE
+        // Construct with ownership of DXBC, and parse decls
         Shader(ImmediateContext* pParent, std::unique_ptr<BYTE[]> byteCode, SIZE_T bytecodeSize);
-        Shader(ImmediateContext* pParent, const BYTE* byteCode, SIZE_T bytecodeSize);
+        // Construct without ownership of DXBC, and parse decls
+        Shader(ImmediateContext* pParent, const void* byteCode, SIZE_T bytecodeSize);
 #endif
+        // Construct with ownership of DXBC and DXIL, with pre-parsed decls
         Shader(ImmediateContext* pParent, std::unique_ptr<BYTE[]> DXBC, CComHeapPtr<void>& DXIL, SIZE_T dxilSize, SShaderDecls PrecomputedDecls);
+        // Construct without ownership, shader model does not matter, with pre-parsed decls
+        Shader(ImmediateContext* pParent, const void* byteCode, SIZE_T bytecodeSize, SShaderDecls PrecomputedDecls);
 
         UINT OutputStreamMask() { return m_OutputStreamMask; }
         const D3D12_SHADER_BYTECODE& GetByteCode() const{ return m_Desc; }

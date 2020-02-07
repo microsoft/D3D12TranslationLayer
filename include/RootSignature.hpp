@@ -80,7 +80,7 @@ namespace D3D12TranslationLayer
                 m_SRVBucket = c_SRVBuckets - 1;
                 m_UsesShaderInterfaces = 0;
             }
-            ShaderStage(Shader* pShader) : ShaderStage()
+            ShaderStage(SShaderDecls const* pShader) : ShaderStage()
             {
                 if (pShader)
                 {
@@ -111,12 +111,12 @@ namespace D3D12TranslationLayer
         UINT m_NumSRVSpacesUsed[5];
 
         template <int N>
-        static Flags ComputeFlags(bool bRequiresBufferOutOfBoundsHandling, std::array<Shader*, N> const& shaders)
+        static Flags ComputeFlags(bool bRequiresBufferOutOfBoundsHandling, std::array<SShaderDecls const*, N> const& shaders)
         {
             UINT flags =
                 ((N == 1) ? Compute : 0) |
                 (bRequiresBufferOutOfBoundsHandling ? RequiresBufferOutOfBoundsHandling : 0);
-            for (Shader* pShader : shaders)
+            for (SShaderDecls const* pShader : shaders)
             {
                 if (pShader && pShader->m_bUsesInterfaces)
                 {
@@ -127,7 +127,7 @@ namespace D3D12TranslationLayer
             return (Flags)flags;
         }
 
-        RootSignatureDesc(Shader* pVS, Shader* pPS, Shader* pGS, Shader* pHS, Shader* pDS, bool bRequiresBufferOutOfBoundsHandling)
+        RootSignatureDesc(SShaderDecls const* pVS, SShaderDecls const* pPS, SShaderDecls const* pGS, SShaderDecls const* pHS, SShaderDecls const* pDS, bool bRequiresBufferOutOfBoundsHandling)
             : m_ShaderStages{
                 { ShaderStage(pPS) },
                 { ShaderStage(pVS) },
@@ -135,7 +135,7 @@ namespace D3D12TranslationLayer
                 { ShaderStage(pHS) },
                 { ShaderStage(pDS) } }
             , m_UAVBucket(NonCBBindingCountToBucket(NumUAVBindings(pVS, pPS, pGS, pHS, pDS)))
-            , m_Flags(ComputeFlags(bRequiresBufferOutOfBoundsHandling, std::array<Shader*, 5>{ pPS, pVS, pGS, pHS, pDS }))
+            , m_Flags(ComputeFlags(bRequiresBufferOutOfBoundsHandling, std::array<SShaderDecls const*, 5>{ pPS, pVS, pGS, pHS, pDS }))
             , m_NumSRVSpacesUsed{
                 pPS ? pPS->m_NumSRVSpacesUsed : 1u,
                 pVS ? pVS->m_NumSRVSpacesUsed : 1u,
@@ -144,11 +144,11 @@ namespace D3D12TranslationLayer
                 pDS ? pDS->m_NumSRVSpacesUsed : 1u }
         {
         }
-        RootSignatureDesc(Shader* pCS, bool bRequiresBufferOutOfBoundsHandling)
+        RootSignatureDesc(SShaderDecls const* pCS, bool bRequiresBufferOutOfBoundsHandling)
             : m_ShaderStages{
                 { ShaderStage(pCS) } }
                 , m_UAVBucket(NonCBBindingCountToBucket(pCS ? (UINT)pCS->m_UAVDecls.size() : 0u))
-            , m_Flags(ComputeFlags(bRequiresBufferOutOfBoundsHandling, std::array<Shader*, 1>{ pCS }))
+            , m_Flags(ComputeFlags(bRequiresBufferOutOfBoundsHandling, std::array<SShaderDecls const*, 1>{ pCS }))
             , m_NumSRVSpacesUsed{ pCS ? pCS->m_NumSRVSpacesUsed : 1u }
         {
         }
@@ -183,10 +183,10 @@ namespace D3D12TranslationLayer
         }
 
     private:
-        static UINT NumUAVBindings(Shader* pVS, Shader* pPS, Shader* pGS, Shader* pHS, Shader* pDS)
+        static UINT NumUAVBindings(SShaderDecls const* pVS, SShaderDecls const* pPS, SShaderDecls const* pGS, SShaderDecls const* pHS, SShaderDecls const* pDS)
         {
             UINT MaxUAVCount = 0;
-            Shader* arr[] = { pVS, pPS, pGS, pHS, pDS };
+            SShaderDecls const* arr[] = { pVS, pPS, pGS, pHS, pDS };
             for (auto p : arr)
             {
                 if (p && p->m_UAVDecls.size() > MaxUAVCount)
