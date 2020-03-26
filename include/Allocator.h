@@ -52,7 +52,7 @@ namespace D3D12TranslationLayer
         }
         void Deallocate(const _BlockType &block) { m_InnerAllocator.Deallocate(block.GetDirectHeapAllocation()); }
 
-        typedef typename std::result_of<decltype(&InnerAllocatorDecayed::Allocate)(InnerAllocatorDecayed, _SizeType)>::type AllocationType;
+        typedef typename std::invoke_result<decltype(&InnerAllocatorDecayed::Allocate), InnerAllocatorDecayed, _SizeType>::type AllocationType;
 
         inline bool IsOwner(_In_ const _BlockType &block) const { return block.GetOffset() == 0; }
         AllocationType GetInnerAllocation(const _BlockType &block) const { return block.GetDirectHeapAllocation(); }

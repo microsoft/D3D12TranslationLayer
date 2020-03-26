@@ -376,7 +376,7 @@ private:
 
     using InnerAllocatorDecayed = typename std::decay<_InnerAllocator>::type;
 public:
-    typedef typename std::result_of<decltype(&InnerAllocatorDecayed::Allocate)(InnerAllocatorDecayed, _SizeType)>::type AllocationType;
+    typedef typename std::invoke_result<decltype(&InnerAllocatorDecayed::Allocate), InnerAllocatorDecayed, _SizeType>::type AllocationType;
 
 private:
     struct RefcountedAllocation
