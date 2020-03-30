@@ -545,7 +545,7 @@ void ImmediateContext::RollOverHeap(OnlineDescriptorHeap& Heap) noexcept(false)
     }
     else
     {
-        if (g_hTracelogging)
+        if (g_bUseRingBufferDescriptorHeaps && g_hTracelogging)
         {
             TraceLoggingWrite(g_hTracelogging,
                 "HeavyDescriptorHeapUsage",
