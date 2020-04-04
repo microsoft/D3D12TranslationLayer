@@ -545,13 +545,16 @@ void ImmediateContext::RollOverHeap(OnlineDescriptorHeap& Heap) noexcept(false)
     }
     else
     {
-        if (g_bUseRingBufferDescriptorHeaps && g_hTracelogging)
+        if constexpr (g_bUseRingBufferDescriptorHeaps)
         {
-            TraceLoggingWrite(g_hTracelogging,
-                "HeavyDescriptorHeapUsage",
-                TraceLoggingUInt32(UINT(Heap.m_Desc.Type), "HeapTypeEnum"),
-                TraceLoggingKeyword(MICROSOFT_KEYWORD_MEASURES),
-                TraceLoggingLevel(TRACE_LEVEL_INFORMATION));
+            if (g_hTracelogging)
+            {
+                TraceLoggingWrite(g_hTracelogging,
+                    "HeavyDescriptorHeapUsage",
+                    TraceLoggingUInt32(UINT(Heap.m_Desc.Type), "HeapTypeEnum"),
+                    TraceLoggingKeyword(MICROSOFT_KEYWORD_MEASURES),
+                    TraceLoggingLevel(TRACE_LEVEL_INFORMATION));
+            }
         }
 
         // If we reach this point they are really heavy heap users so we can fall back the roll over strategy
