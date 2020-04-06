@@ -16,7 +16,7 @@ namespace D3D12TranslationLayer
     public:
         ResourceCache(ImmediateContext &device);
 
-        ResourceCacheEntry const& GetResource(DXGI_FORMAT format, UINT width, UINT height);
+        ResourceCacheEntry const& GetResource(DXGI_FORMAT format, UINT width, UINT height, DXGI_FORMAT viewFormat = DXGI_FORMAT_UNKNOWN);
         void TakeCacheEntryOwnership(DXGI_FORMAT format, ResourceCacheEntry& entryOut);
 
         typedef std::map<DXGI_FORMAT, ResourceCacheEntry> DXGIMap;

@@ -1481,7 +1481,7 @@ void TRANSLATION_API ImmediateContext::ClearResourceWithNoRenderTarget(Resource*
     UINT TargetPlane = GetPlaneIdxFromSubresourceIdx(Subresource, pResource->AppDesc()->SubresourcesPerPlane());
     assert(BasePlane <= TargetPlane);
     color = adjustedColor + (TargetPlane - BasePlane);
-    
+
     RECT resourceRect = {};
     resourceRect.right = Footprint.Width;
     resourceRect.bottom = Footprint.Height;
@@ -1605,8 +1605,23 @@ void TRANSLATION_API ImmediateContext::ClearResourceWithNoRenderTarget(Resource*
         tileShape.WidthInTexels *= 4;
         tileShape.HeightInTexels *= 4;
 
+        DXGI_FORMAT viewFormat = DXGI_FORMAT_UNKNOWN;
+        FLOAT ClearColor[4] = { color[0], color[1], color[2], color[3] };
+
+        switch (clearFormat)
+        {
+        case DXGI_FORMAT_AYUV:
+            viewFormat = DXGI_FORMAT_R8G8B8A8_UINT;
+            ClearColor[0] = color[2]; // V8 -> R8
+            ClearColor[1] = color[1]; // U8 -> G8
+            ClearColor[2] = color[0]; // Y8 -> B8
+            ClearColor[3] = color[3]; // A8 -> A8
+            break;
+        }
+
+
         // Request a resource with the tile size.
-        auto& CacheEntry = GetResourceCache().GetResource(clearFormat, tileShape.WidthInTexels, tileShape.HeightInTexels);
+        auto& CacheEntry = GetResourceCache().GetResource(clearFormat, tileShape.WidthInTexels, tileShape.HeightInTexels, viewFormat);
 
         // The resource cache returns a resource that is the requested size or larger.
         tileShape.WidthInTexels = CacheEntry.m_Resource->AppDesc()->Width();
@@ -1631,9 +1646,9 @@ void TRANSLATION_API ImmediateContext::ClearResourceWithNoRenderTarget(Resource*
             D3D12_RECT clearResourceRect = CD3DX12_RECT(0, 0, tileShape.WidthInTexels, tileShape.HeightInTexels);
             IntersectRect(&clearRect, &clearRect, &clearResourceRect);
         }
-        
+
         // Clear the region needed in the allocated resource.
-        ClearRenderTargetView(CacheEntry.m_RTV.get(), color, 1, &clearRect);
+        ClearRenderTargetView(CacheEntry.m_RTV.get(), ClearColor, 1, &clearRect);
 
         // Loop over the rects to clear the region.
         for (UINT i = 0; i < numCopyRects; ++i)

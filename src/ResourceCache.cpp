@@ -9,7 +9,7 @@ namespace D3D12TranslationLayer
     {
     };
 
-    ResourceCacheEntry const& ResourceCache::GetResource(DXGI_FORMAT format, UINT width, UINT height)
+    ResourceCacheEntry const& ResourceCache::GetResource(DXGI_FORMAT format, UINT width, UINT height, DXGI_FORMAT viewFormat)
     {
         ResourceCacheEntry& CacheEntry = m_Cache[format];
 
@@ -26,6 +26,9 @@ namespace D3D12TranslationLayer
                 CacheEntry = ResourceCacheEntry{};
             }
         }
+
+        // The D3D12 runtime also defaults DXGI_FORMAT_UNKNOWN to the resource format of the texture when creating a view.
+        viewFormat = viewFormat == DXGI_FORMAT_UNKNOWN ? format : viewFormat;
 
         if (!CacheEntry.m_Resource)
         {
@@ -51,16 +54,24 @@ namespace D3D12TranslationLayer
 
             // TODO: Pass down the clear color to D3D12's create resource
             CacheEntry.m_Resource = Resource::CreateResource(&m_device, createArg, ResourceAllocationContext::ImmediateContextThreadLongLived);
+        }
 
+        if (   !CacheEntry.m_RTV
+            || !(CacheEntry.m_RTV->GetDesc12().Format == viewFormat))
+        {
             D3D12_RENDER_TARGET_VIEW_DESC RTVDesc = {};
-            RTVDesc.Format = format;
+            RTVDesc.Format = viewFormat;
             RTVDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
             RTVDesc.Texture2D.MipSlice = 0;
             RTVDesc.Texture2D.PlaneSlice = 0;
             CacheEntry.m_RTV.reset(new RTV(&m_device, RTVDesc, *CacheEntry.m_Resource));
+        }
 
+        if (   !CacheEntry.m_SRV
+            || !(CacheEntry.m_SRV->GetDesc12().Format == viewFormat))
+        {
             D3D12_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
-            SRVDesc.Format = format;
+            SRVDesc.Format = viewFormat;
             SRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
             SRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
             SRVDesc.Texture2D.MipLevels = 1;
