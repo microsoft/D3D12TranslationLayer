@@ -1278,8 +1278,8 @@ private: // methods
 
     void SameResourceCopy(Resource *pSrc, UINT SrcSubresource, Resource *pDst, UINT DstSubresource, UINT dstX, UINT dstY, UINT dstZ, const D3D12_BOX *pSrcBox);
 
-    void PostCopy(Resource *pSrc, UINT startSubresource, Resource *pDest, UINT dstSubresource, UINT totalNumSubresources);
 public:
+    void PostCopy(Resource *pSrc, UINT startSubresource, Resource *pDest, UINT dstSubresource, UINT totalNumSubresources);
     void PostUpload();
 
     void CopyDataToBuffer(
