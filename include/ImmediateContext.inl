@@ -1264,11 +1264,15 @@ inline ID3D12VideoProcessCommandList2 *ImmediateContext::GetVideoProcessCommandL
     }
 }
 
+// There is an MSVC bug causing a bogus warning to be emitted here for x64 only, while compiling ApplyAllResourceTransitions
+#pragma warning(push)
+#pragma warning(disable: 4789)
 //----------------------------------------------------------------------------------------------------------------------------------
 inline CommandListManager *ImmediateContext::GetCommandListManager(COMMAND_LIST_TYPE type) noexcept
 {
     return type != COMMAND_LIST_TYPE::UNKNOWN ? m_CommandLists[(UINT)type].get() : nullptr;
 }
+#pragma warning(pop)
 
 //----------------------------------------------------------------------------------------------------------------------------------
 inline ID3D12CommandList *ImmediateContext::GetCommandList(COMMAND_LIST_TYPE commandListType) noexcept
