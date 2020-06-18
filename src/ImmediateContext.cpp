@@ -2913,8 +2913,8 @@ void ImmediateContext::CPrepareUpdateSubresourcesHelper::AssertPreconditions(con
 {
     // Currently only handles initial data and UpdateSubresource-type operations
     // This means: 1 plane, 1 legacy subresource, or all subresources with no box
-    assert(NumSrcData == 1U || (NumSrcData == static_cast<UINT>(Dst.AppDesc()->MipLevels() * Dst.AppDesc()->ArraySize()) && !bDstBoxPresent));
-    assert(NumDstSubresources == 1U || NumDstSubresources == Dst.SubresourceMultiplier() || (NumDstSubresources == Dst.NumSubresources() && !bDstBoxPresent));
+    assert(NumSrcData == 1U || (NumSrcData == static_cast<UINT>(Dst.AppDesc()->MipLevels() * Dst.AppDesc()->ArraySize()) && !bDstBoxPresent && !pClearPattern));
+    assert(NumDstSubresources == 1U || NumDstSubresources == Dst.SubresourceMultiplier() || (NumDstSubresources == Dst.NumSubresources() && !bDstBoxPresent && !pClearPattern));
 
     // This routine accepts either a clear color (one pixel worth of data) or a SUBRESOURCE_DATA struct (minimum one row of data)
     assert(!(pClearPattern && pSrcData));
@@ -3162,17 +3162,44 @@ void ImmediateContext::CPrepareUpdateSubresourcesHelper::UploadDataToMappableRes
         if (pClearPattern)
         {
             assert(!CD3D11FormatHelper::Planar(Dst.AppDesc()->Format()) && CD3D11FormatHelper::GetBitsPerElement(Dst.AppDesc()->Format()) % 8 == 0);
+            assert(NumDstSubresources == 1);
             // What we're clearing here may not be one pixel, so intentionally using GetByteAlignment to determine the minimum size
             // for a fully aligned block of pixels. (E.g. YUY2 is 8 bits per element * 2 elements per pixel * 2 pixel subsampling = 32 bits of clear data).
             const UINT SizeOfClearPattern = ClearPatternSize != 0 ? ClearPatternSize :
                 CD3D11FormatHelper::GetByteAlignment(Dst.AppDesc()->Format());
             UINT ClearByteIndex = 0;
-            std::generate_n((BYTE*)pDstData + bufferOffset, CopySize, [&]()
+            auto generator = [&]()
             {
                 auto result = *(reinterpret_cast<const BYTE*>(pClearPattern) + ClearByteIndex);
                 ClearByteIndex = (ClearByteIndex + 1) % SizeOfClearPattern;
                 return result;
-            });
+            };
+            if (FirstSubresourcePlacement.Footprint.RowPitch % SizeOfClearPattern != 0)
+            {
+                UINT SlicePitch;
+                CD3D11FormatHelper::CalculateMinimumRowMajorSlicePitch(
+                    FirstSubresourcePlacement.Footprint.Format,
+                    FirstSubresourcePlacement.Footprint.RowPitch,
+                    FirstSubresourcePlacement.Footprint.Height,
+                    SlicePitch);
+
+                // We need to make sure to leave a gap in the pattern so that it starts on byte 0 for every row
+                for (UINT z = 0; z < FirstSubresourcePlacement.Footprint.Depth; ++z)
+                {
+                    for (UINT y = 0; y < FirstSubresourcePlacement.Footprint.Height; ++y)
+                    {
+                        BYTE* pDstRow = (BYTE*)pDstData + bufferOffset +
+                            FirstSubresourcePlacement.Footprint.RowPitch * y +
+                            SlicePitch * z;
+                        ClearByteIndex = 0;
+                        std::generate_n(pDstRow, FirstSubresourcePlacement.Footprint.RowPitch, generator);
+                    }
+                }
+            }
+            else
+            {
+                std::generate_n((BYTE*)pDstData + bufferOffset, CopySize, generator);
+            }
         }
         else
         {
