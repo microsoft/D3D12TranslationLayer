@@ -653,9 +653,6 @@ BatchedContext::BatchedContext(ImmediateContext& ImmCtx, CreationArgs args, Call
     }
     if (args.SubmitBatchesToWorkerThread)
     {
-        m_BatchSubmittedSemaphore.m_h = CreateSemaphore(nullptr, 0, c_MaxOutstandingBatches, nullptr);
-        ThrowIfHandleNull(m_BatchSubmittedSemaphore);
-
         m_BatchConsumedSemaphore.m_h = CreateSemaphore(nullptr, 0, c_MaxOutstandingBatches, nullptr);
         ThrowIfHandleNull(m_BatchConsumedSemaphore);
 
@@ -674,7 +671,17 @@ BatchedContext::BatchedContext(ImmediateContext& ImmCtx, CreationArgs args, Call
 //----------------------------------------------------------------------------------------------------------------------------------
 BatchedContext::~BatchedContext()
 {
+    Shutdown();
+}
+
+//----------------------------------------------------------------------------------------------------------------------------------
+void BatchedContext::Shutdown()
+{
     assert(!IsBatchThread());
+    if (m_bShutdown)
+        return;
+
+    m_bShutdown = true;
     // Batch producing contexts shouldn't flush on their own.
     if (!m_CreationArgs.pParentContext)
     {
@@ -683,12 +690,7 @@ BatchedContext::~BatchedContext()
     if (m_CreationArgs.SubmitBatchesToWorkerThread)
     {
         assert(m_NumOutstandingBatches == 0 && m_QueuedBatches.empty());
-
-        // When the batch thread wakes up after consuming a semaphore value, and
-        // sees that the queue is empty, it will exit.
-        BOOL value = ReleaseSemaphore(m_BatchSubmittedSemaphore, 1, nullptr);
-        assert(value == TRUE);
-        UNREFERENCED_PARAMETER(value);
+        m_WorkerThreadWakeupCV.notify_one();
 
         // Wait for it to exit.
         WaitForSingleObject(m_BatchThread, INFINITE);
@@ -735,6 +737,7 @@ void BatchedContext::AddToBatchVariableSize(TCmd const& command, UINT NumEntries
     std::copy(entries, entries + NumEntries, &pPtr->FirstEntry);
 
     ++m_CurrentCommandCount;
+    ++m_BatchRecordingID;
     SubmitBatchIfIdle();
 }
 
@@ -757,6 +760,7 @@ void BatchedContext::EmplaceInBatch(Args&&... args)
     new (pPtr) TCmd(std::forward<Args>(args)...);
 
     ++m_CurrentCommandCount;
+    ++m_BatchRecordingID;
     SubmitBatchIfIdle();
 }
 
@@ -1125,8 +1129,8 @@ void TRANSLATION_API BatchedContext::UploadInitialData(Resource* pDst, D3D12Tran
         };
         if (m_CreationArgs.CreatesAndDestroysAreMultithreaded)
         {
-            auto Lock = m_PreBatchExecutionCS.TakeLock();
-            m_bPendingInitialData = true;
+            auto Lock = m_SubmissionLock.TakeLock();
+            ++m_BatchRecordingID;
             AddToBatchImpl(m_PreBatchCommands);
         }
         else
@@ -1134,6 +1138,7 @@ void TRANSLATION_API BatchedContext::UploadInitialData(Resource* pDst, D3D12Tran
             AddToBatchImpl(m_CurrentBatch);
 
             ++m_CurrentCommandCount;
+            ++m_BatchRecordingID;
             SubmitBatchIfIdle();
         }
     }
@@ -1172,12 +1177,12 @@ bool TRANSLATION_API BatchedContext::RenameAndMapBuffer(BatchedResource* pResour
     
         ThrowFailure(pResource->m_LastRenamedResource.Map(0, &ReadRange, &pData));
         AddToBatch(CmdRename{ pResource->m_pResource, cookie.Get() });
-        AddPostBatchFunction([cleanup = cookie.Detach(), &immCtx = GetImmediateContextNoFlush()](){ immCtx.DeleteRenameCookie(cleanup); });
+        AddDestroyFunction([cleanup = cookie.Detach(), &immCtx = GetImmediateContextNoFlush()](){ immCtx.DeleteRenameCookie(cleanup); });
     
         pMappedSubresource->pData = pData;
         pMappedSubresource->RowPitch = pResource->m_pResource->GetSubresourcePlacement(0).Footprint.RowPitch;
         pMappedSubresource->DepthPitch = pResource->m_pResource->DepthPitch(0);
-    
+
         return true;
     }
     catch (_com_error& hrEx)
@@ -1297,7 +1302,7 @@ void TRANSLATION_API BatchedContext::UnmapAndRenameViaCopy(BatchedResource* pRes
         pResource->m_LastRenamedResource.Unmap(0, &WriteRange);
 
         AddToBatch(CmdRenameViaCopy{ pResource->m_pResource, pResource->m_PendingRenameViaCopyCookie.Get(), pResource->m_DynamicTexturePlaneData.m_DirtyPlaneMask });
-        AddPostBatchFunction([cleanup = pResource->m_PendingRenameViaCopyCookie.Detach(), &immCtx = GetImmediateContextNoFlush()](){ immCtx.DeleteRenameCookie(cleanup); });
+        AddDestroyFunction([cleanup = pResource->m_PendingRenameViaCopyCookie.Detach(), &immCtx = GetImmediateContextNoFlush()](){ immCtx.DeleteRenameCookie(cleanup); });
 
         pResource->m_DynamicTexturePlaneData = {};
         pResource->m_LastRenamedResource.Reset();
@@ -1314,7 +1319,7 @@ void TRANSLATION_API BatchedContext::QueryBegin(BatchedQuery* pAsync)
 
     if (m_CreationArgs.SubmitBatchesToWorkerThread)
     {
-        pAsync->m_BatchReference = GetCurrentRecordingBatch();
+        pAsync->m_BatchID = m_BatchRecordingID.load() + 1;
     }
 
     AddToBatch(CmdQueryBegin{ pAsync->GetImmediateNoFlush() });
@@ -1332,7 +1337,7 @@ void TRANSLATION_API BatchedContext::QueryEnd(BatchedQuery* pAsync)
 
     if (m_CreationArgs.SubmitBatchesToWorkerThread)
     {
-        pAsync->m_BatchReference = GetCurrentRecordingBatch();
+        pAsync->m_BatchID = m_BatchRecordingID.load() + 1;
     }
 
     AddToBatch(CmdQueryEnd{ pAsync->GetImmediateNoFlush() });
@@ -1341,10 +1346,10 @@ void TRANSLATION_API BatchedContext::QueryEnd(BatchedQuery* pAsync)
 
 //----------------------------------------------------------------------------------------------------------------------------------
 template <typename TFunc>
-bool BatchedContext::SyncWithBatch(Batch::Reference& BatchReference, bool DoNotFlush, TFunc&& GetImmObjectFenceValues)
+bool BatchedContext::SyncWithBatch(uint64_t BatchID, bool DoNotFlush, TFunc&& GetImmObjectFenceValues)
 {
     // Not even submitted yet.
-    if (BatchReference == GetCurrentRecordingBatch())
+    if (BatchID > m_CurrentBatchStartingID)
     {
         if (!DoNotFlush)
         {
@@ -1358,25 +1363,27 @@ bool BatchedContext::SyncWithBatch(Batch::Reference& BatchReference, bool DoNotF
     }
 
     // If we're not going to do anything if it's not done, check before taking the lock.
-    if (DoNotFlush && !BatchReference.IsCPUDone())
+    if (DoNotFlush && BatchID > m_CompletedBatchID.load())
     {
         return false;
     }
 
     auto lock = m_SubmissionLock.TakeLock();
 
-    if (!BatchReference.IsCPUDone())
+    if (BatchID > m_CompletedBatchID.load())
     {
         // Would've already returned before taking the lock.
         assert(!DoNotFlush);
 
         // Make sure it's marked to flush when it's done.
         // We don't know what command list types to use on this timeline, so just request all.
-        BatchReference.RequestFlush(COMMAND_LIST_TYPE_ALL_MASK);
+        m_RequestedFlushes.emplace_back(BatchID, COMMAND_LIST_TYPE_ALL_MASK);
+        if (lock) lock.unlock();
+        m_WorkerThreadWakeupCV.notify_one();
         return false;
     }
 
-    assert(BatchReference.IsCPUDone());
+    assert(BatchID <= m_CompletedBatchID.load());
     UINT64 FenceValues[(UINT)COMMAND_LIST_TYPE::MAX_VALID] = {};
     GetImmObjectFenceValues(FenceValues);
     if (!DoNotFlush)
@@ -1398,14 +1405,9 @@ bool BatchedContext::SyncWithBatch(Batch::Reference& BatchReference, bool DoNotF
         if (FlushMask != 0)
         {
             // Not checking thread idle bit as we're already under the lock.
-            if (m_QueuedBatches.empty())
-            {
-                m_ImmCtx.Flush(FlushMask);
-            }
-            else
-            {
-                m_QueuedBatches.front()->m_FlushRequestedMask |= FlushMask;
-            }
+            m_RequestedFlushes.emplace_front(0, FlushMask);
+            if (lock) lock.unlock();
+            m_WorkerThreadWakeupCV.notify_one();
             return false;
         }
     }
@@ -1435,9 +1437,10 @@ bool TRANSLATION_API BatchedContext::QueryGetData(BatchedQuery* pAsync, void* pD
 
     // Check if it's done yet.
     bool bAsyncGetData = false;
-    if (pAsync->m_BatchReference)
+    if (m_CreationArgs.SubmitBatchesToWorkerThread &&
+        pAsync->m_BatchID)
     {
-        if (!SyncWithBatch(pAsync->m_BatchReference, DoNotFlush,
+        if (!SyncWithBatch(pAsync->m_BatchID, DoNotFlush,
                            [pAsync](UINT64* pFenceValues)
         {
             auto& EndedCommandListIDs = pAsync->GetImmediateNoFlush()->m_EndedCommandListID;
@@ -1446,12 +1449,10 @@ bool TRANSLATION_API BatchedContext::QueryGetData(BatchedQuery* pAsync, void* pD
         {
             return false;
         }
-        pAsync->m_BatchReference = Batch::Reference();
         bAsyncGetData = true;
     }
     else
     {
-        // TODO: Optimize this maybe.
         ProcessBatch();
     }
 
@@ -1518,6 +1519,7 @@ void TRANSLATION_API BatchedContext::SetHardwareProtectionState(BOOL state)
 void TRANSLATION_API BatchedContext::BatchExtension(BatchedExtension* pExt, const void* pData, size_t DataSize)
 {
     EmplaceInBatch<CmdExtension>(pExt, pData, DataSize);
+    ++m_BatchRecordingID;
 }
 
 BatchedContext::CmdExtension::CmdExtension(BatchedExtension* pExt, const void* pData, size_t DataSize)
@@ -1730,24 +1732,21 @@ void TRANSLATION_API BatchedContext::ProcessBatch()
         // Ensure destroys are executed even if a batch function errors out.
         auto FunctionExit = MakeScopeExit([this]()
         {
-            if (m_bPendingDestroys)
+            auto Lock = m_SubmissionLock.TakeLock();
+            for (auto& pair : m_DestructionFunctions)
             {
-                auto Lock = m_PostBatchExecutionCS.TakeLock();
-                for (auto& fn : m_PostBatchFunctions)
-                {
-                    fn();
-                }
-                m_PostBatchFunctions.clear();
-                m_bPendingDestroys = false;
+                assert(pair.first <= m_BatchRecordingID.load());
+                pair.second();
             }
+            m_DestructionFunctions.clear();
 
             m_CurrentCommandCount = 0;
+            m_CompletedBatchID.store(m_BatchRecordingID.load());
+            m_CurrentBatchStartingID = m_BatchRecordingID.load();
         });
 
-        if (m_bPendingInitialData)
         {
-            auto Lock = m_PreBatchExecutionCS.TakeLock();
-            m_bPendingInitialData = false;
+            auto Lock = m_SubmissionLock.TakeLock();
             ProcessBatchWork(m_PreBatchCommands); // throws
         }
 
@@ -1761,49 +1760,42 @@ std::unique_ptr<BatchedContext::Batch> BatchedContext::GetIdleBatch()
     // Assumed m_SubmissionLock is held.
 
     // Find a free batch if possible
-    for (auto iter = m_FreeBatches.begin(); iter != m_FreeBatches.end(); ++iter)
+    if (!m_FreeBatches.empty())
     {
-        if (iter->get()->m_RefCount == 0)
-        {
-            auto batch = std::move(*iter);
-            m_FreeBatches.erase(iter);
-            batch->Reset();
-            return batch;
-        }
+        auto batch = std::move(m_FreeBatches.front());
+        m_FreeBatches.pop_front();
+        return batch;
     }
     return std::unique_ptr<Batch>(new Batch(m_BatchStorageAllocator));
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-std::unique_ptr<BatchedContext::Batch> BatchedContext::FinishBatch(bool bFlushImmCtxAfterBatch)
+std::unique_ptr<BatchedContext::Batch> BatchedContext::FinishBatch()
 {
     assert(!IsBatchThread());
     BatchStorage NewPreBatch(m_BatchStorageAllocator);
     BatchStorage NewBatch(m_BatchStorageAllocator);
     std::vector<std::function<void()>> NewPostBatchFunctions;
 
-    if (m_bPendingInitialData)
-    {
-        auto Lock = m_PreBatchExecutionCS.TakeLock();
-        std::swap(m_PreBatchCommands, NewPreBatch);
-        m_bPendingInitialData = false;
-    }
-
+    std::swap(m_PreBatchCommands, NewPreBatch);
     std::swap(m_CurrentBatch, NewBatch);
 
-    if (m_bPendingDestroys)
-    {
-        auto Lock = m_PostBatchExecutionCS.TakeLock();
-        std::swap(m_PostBatchFunctions, NewPostBatchFunctions);
-        m_bPendingDestroys = false;
-    }
-
-    auto Lock = m_SubmissionLock.TakeLock();
-    m_CurrentRecordingBatch->PrepareToSubmit(std::move(NewPreBatch), std::move(NewBatch), std::move(NewPostBatchFunctions), bFlushImmCtxAfterBatch);
+    m_CurrentRecordingBatch->PrepareToSubmit(std::move(NewPreBatch), std::move(NewBatch), m_BatchRecordingID.load());
     auto pRet = std::move(m_CurrentRecordingBatch);
+
+    if (m_CreationArgs.pParentContext != nullptr)
+    {
+        pRet->m_CommandListCleanup.reserve(m_DestructionFunctions.size());
+        for (auto&& [_, cleanupFn] : m_DestructionFunctions)
+        {
+            pRet->m_CommandListCleanup.emplace_back(std::move(cleanupFn));
+        }
+        m_DestructionFunctions.clear();
+    }
 
     m_CurrentRecordingBatch = GetIdleBatch();
     m_CurrentCommandCount = 0;
+    m_CurrentBatchStartingID = m_BatchRecordingID.load();
 
     return std::move(pRet);
 }
@@ -1824,12 +1816,10 @@ void TRANSLATION_API BatchedContext::SubmitCommandListBatch(Batch* pBatch)
 void TRANSLATION_API BatchedContext::RetireBatch(std::unique_ptr<Batch> pBatch)
 {
     // Note: Only used for command list batches - implicit batches have slightly different retiring semantics
-    for (auto& fn : pBatch->m_PostBatchFunctions)
+    for (auto& fn : pBatch->m_CommandListCleanup)
     {
         fn();
     }
-
-    auto Lock = m_SubmissionLock.TakeLock();
 
     pBatch->Retire(m_FreePages);
     m_FreeBatches.emplace_back(std::move(pBatch));
@@ -1840,11 +1830,6 @@ void TRANSLATION_API BatchedContext::SubmitBatch(bool bFlushImmCtxAfterBatch)
 {
     assert(!IsBatchThread());
     assert(m_CreationArgs.pParentContext == nullptr);
-    if (!m_bPendingInitialData && m_CurrentBatch.empty() && !m_bPendingDestroys)
-    {
-        // Nothing to do.
-        return;
-    }
 
     if (!m_CreationArgs.SubmitBatchesToWorkerThread)
     {
@@ -1852,11 +1837,21 @@ void TRANSLATION_API BatchedContext::SubmitBatch(bool bFlushImmCtxAfterBatch)
         return;
     }
 
-    auto pBatch = FinishBatch(bFlushImmCtxAfterBatch);
-
     {
         auto Lock = m_SubmissionLock.TakeLock();
+        if (m_PreBatchCommands.empty() && m_CurrentBatch.empty())
+        {
+            // Nothing to do.
+            return;
+        }
+
+        auto pBatch = FinishBatch();
+
         m_QueuedBatches.emplace_back(std::move(pBatch));
+        if (bFlushImmCtxAfterBatch)
+        {
+            m_RequestedFlushes.emplace_back(m_BatchRecordingID.load(), COMMAND_LIST_TYPE_ALL_MASK);
+        }
     }
 
     // Check if there's room in the semaphores.
@@ -1868,9 +1863,7 @@ void TRANSLATION_API BatchedContext::SubmitBatch(bool bFlushImmCtxAfterBatch)
     }
 
     // Wake up the batch thread
-    BOOL value = ReleaseSemaphore(m_BatchSubmittedSemaphore, 1, nullptr);
-    assert(value == TRUE);
-    UNREFERENCED_PARAMETER(value);
+    m_WorkerThreadWakeupCV.notify_one();
 
     ++m_NumOutstandingBatches;
 }
@@ -1923,13 +1916,6 @@ bool BatchedContext::WaitForSingleBatch(DWORD timeout)
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-auto BatchedContext::GetCurrentRecordingBatch() -> Batch::Reference
-{
-    assert(!IsBatchThread());
-    return Batch::Reference(*m_CurrentRecordingBatch.get());
-}
-
-//----------------------------------------------------------------------------------------------------------------------------------
 void BatchedContext::ProcessBatchImpl(Batch* pBatchToProcess)
 {
     try
@@ -1952,52 +1938,88 @@ void BatchedContext::BatchThread()
     {
         FreeLibrary(hMyModule);
     });
+    uint64_t CompletedBatchID = 0;
     while (true)
     {
-        // Wait for work
-        WaitForSingleObject(m_BatchSubmittedSemaphore, INFINITE);
+        Batch* pBatchToProcess = nullptr;
+        UINT TotalFlushMask = 0;
 
-        // Figure out what we're supposed to be working on
-        std::unique_ptr<Batch> pBatchToProcess;
+        // Figure out what to do
         {
             auto Lock = m_SubmissionLock.TakeLock();
-            if (!m_QueuedBatches.empty())
+            while (true)
             {
-                pBatchToProcess = std::move(m_QueuedBatches.front());
-                m_QueuedBatches.pop_front();
+                // If there's destructions that are ready to go, process them
+                while (!m_DestructionFunctions.empty() &&
+                       m_DestructionFunctions.front().first <= CompletedBatchID)
+                {
+                    m_DestructionFunctions.front().second();
+                    m_DestructionFunctions.pop_front();
+                }
+
+                // If there's flushes that are ready to go
+                while (!m_RequestedFlushes.empty())
+                {
+                    auto [BatchID, FlushMask] = m_RequestedFlushes.front();
+                    if (BatchID <= CompletedBatchID)
+                    {
+                        TotalFlushMask |= FlushMask;
+                        m_RequestedFlushes.pop_front();
+                        continue;
+                    }
+                    break;
+                }
+                if (TotalFlushMask)
+                {
+                    // Flush before processing this next batch
+                    break;
+                }
+
+                // If there's commands ready to go
+                if (!m_QueuedBatches.empty())
+                {
+                    pBatchToProcess = m_QueuedBatches.front().get();
+                    break;
+                }
+
+                // If we've drained all our queues and we're shutting down, exit
+                if (m_bShutdown)
+                {
+                    return;
+                }
+
+                // Otherwise, wait to be notified of work in one of the above categories
+                m_WorkerThreadWakeupCV.wait(Lock);
             }
         }
 
-        // Semaphore was signaled but there's no work to be done, exit thread.
-        if (!pBatchToProcess)
+        // Flush if requested
+        if (TotalFlushMask)
         {
-            return;
+            m_ImmCtx.Flush(TotalFlushMask);
         }
 
-        // Do the work
-        ProcessBatchImpl(pBatchToProcess.get());
-
-        // Retire the batch
-        for (auto& fn : pBatchToProcess->m_PostBatchFunctions)
+        // Do the work if requested
+        if (pBatchToProcess)
         {
-            fn();
+            ProcessBatchImpl(pBatchToProcess);
+
+            // Retire the batch
+            {
+                auto Lock = m_SubmissionLock.TakeLock();
+
+                CompletedBatchID = pBatchToProcess->m_ID;
+                m_CompletedBatchID.store(CompletedBatchID);
+
+                pBatchToProcess->Retire(m_FreePages);
+                m_FreeBatches.emplace_back(std::move(m_QueuedBatches.front()));
+                m_QueuedBatches.pop_front();
+            }
+
+            BOOL value = ReleaseSemaphore(m_BatchConsumedSemaphore, 1, nullptr);
+            assert(value == TRUE);
+            UNREFERENCED_PARAMETER(value);
         }
-
-        {
-            auto Lock = m_SubmissionLock.TakeLock();
-
-            UINT FlushRequestedMask = pBatchToProcess->m_FlushRequestedMask;
-            pBatchToProcess->m_bCPUProcessingCompleted = true;
-
-            pBatchToProcess->Retire(m_FreePages);
-            m_FreeBatches.emplace_back(std::move(pBatchToProcess));
-
-            m_ImmCtx.Flush(FlushRequestedMask);
-        }
-
-        BOOL value = ReleaseSemaphore(m_BatchConsumedSemaphore, 1, nullptr);
-        assert(value == TRUE);
-        UNREFERENCED_PARAMETER(value);
     }
 }
 
@@ -2066,7 +2088,6 @@ void FreePageContainer::LockedAdder::AddPage(void* pPage) noexcept
 //----------------------------------------------------------------------------------------------------------------------------------
 void BatchedContext::Batch::Retire(FreePageContainer& FreePages) noexcept
 {
-    SetEvent(m_hCPUCompletionEvent);
     FreePageContainer::LockedAdder Adder(FreePages);
     for (auto& segment : m_PreBatchCommands.m_segments)
     {
@@ -2078,24 +2099,15 @@ void BatchedContext::Batch::Retire(FreePageContainer& FreePages) noexcept
     }
     m_PreBatchCommands.m_segments.clear();
     m_BatchCommands.m_segments.clear();
-    m_PostBatchFunctions.clear();
+    m_CommandListCleanup.clear();
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-void BatchedContext::Batch::Reset() noexcept
-{
-    ResetEvent(m_hCPUCompletionEvent);
-    m_FlushRequestedMask = 0;
-    m_bCPUProcessingCompleted = false;
-}
-
-//----------------------------------------------------------------------------------------------------------------------------------
-void BatchedContext::Batch::PrepareToSubmit(BatchStorage PreBatchCommands, BatchStorage BatchCommands, std::vector<std::function<void()>> PostBatchFunctions, bool bRequestFlush)
+void BatchedContext::Batch::PrepareToSubmit(BatchStorage PreBatchCommands, BatchStorage BatchCommands, uint64_t ID)
 {
     m_PreBatchCommands = std::move(PreBatchCommands);
     m_BatchCommands = std::move(BatchCommands);
-    m_PostBatchFunctions = std::move(PostBatchFunctions);
-    m_FlushRequestedMask |= bRequestFlush ? COMMAND_LIST_TYPE_ALL_MASK : 0;
+    m_ID = ID;
 }
 
 }

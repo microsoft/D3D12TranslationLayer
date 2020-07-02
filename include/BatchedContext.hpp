@@ -57,16 +57,10 @@ public:
     {
         friend class BatchedContext;
 
-        int m_RefCount = 0;
         BatchStorage m_PreBatchCommands;
         BatchStorage m_BatchCommands;
-        std::vector<std::function<void()>> m_PostBatchFunctions;
-        ThrowingSafeHandle m_hCPUCompletionEvent{ CreateEvent(nullptr, TRUE, FALSE, nullptr) };
-
-        std::atomic<bool> m_bCPUProcessingCompleted = false;
-
-        // Used to check GPU completion. Guarded by submission lock.
-        UINT m_FlushRequestedMask = 0;
+        std::vector<std::function<void()>> m_CommandListCleanup;
+        uint64_t m_ID;
 
         Batch(BatchStorageAllocator const& allocator)
             : m_PreBatchCommands(std::nothrow, allocator)
@@ -74,35 +68,7 @@ public:
         {
         }
         void Retire(FreePageContainer& FreePages) noexcept;
-        void Reset() noexcept;
-        void PrepareToSubmit(BatchStorage PreBatchCommands, BatchStorage BatchCommands, std::vector<std::function<void()>> PostBatchFunctions, bool bRequestFlush);
-
-    public:
-        class Reference
-        {
-            Batch* m_Batch = nullptr;
-            void Release() noexcept { if (m_Batch) m_Batch->m_RefCount--; }
-        public:
-            Reference() noexcept { }
-            Reference(Batch& b) noexcept : m_Batch(&b) { b.m_RefCount++; }
-            Reference(Reference const& r) noexcept : m_Batch(r.m_Batch) { m_Batch->m_RefCount++; }
-            Reference(Reference&& r) noexcept : m_Batch(r.m_Batch) { r.m_Batch = nullptr; }
-            Reference& operator=(Reference const& r) noexcept { Release(); m_Batch = r.m_Batch; m_Batch->m_RefCount++; return *this; }
-            Reference& operator=(Reference&& r) noexcept { Release(); m_Batch = r.m_Batch; r.m_Batch = nullptr; return *this; }
-            ~Reference() noexcept { Release(); }
-
-            // This is the interface for the application thread.
-            // Holding a reference on a batch ensures that it won't be re-used.
-            operator bool() const noexcept { return m_Batch != nullptr; }
-            bool IsCPUDone() const noexcept { return m_Batch->m_bCPUProcessingCompleted; }
-            void WaitForCPU() const noexcept { WaitForSingleObject(m_Batch->m_hCPUCompletionEvent, INFINITE); }
-
-            bool operator==(Reference const& o) const noexcept { return m_Batch == o.m_Batch; }
-
-            // Requires holding the submission lock.
-            bool BatchRequestsFlush() const noexcept { return m_Batch->m_FlushRequestedMask != 0; }
-            void RequestFlush(UINT FlushMask) noexcept { m_Batch->m_FlushRequestedMask |= FlushMask; }
-        };
+        void PrepareToSubmit(BatchStorage PreBatchCommands, BatchStorage BatchCommands, uint64_t ID);
     };
 
     static const void* AlignPtr(const void* pPtr) noexcept
@@ -556,12 +522,13 @@ public:
 
     void TRANSLATION_API ProcessBatch();
     void TRANSLATION_API SubmitBatch(bool bFlushImmCtxAfterBatch = false);
-    Batch::Reference TRANSLATION_API GetCurrentRecordingBatch();
     void TRANSLATION_API SubmitBatchIfIdle();
 
-    std::unique_ptr<Batch> TRANSLATION_API FinishBatch(bool bFlushImmCtxAfterBatch = false);
+    std::unique_ptr<Batch> TRANSLATION_API FinishBatch();
     void TRANSLATION_API SubmitCommandListBatch(Batch*);
     void TRANSLATION_API RetireBatch(std::unique_ptr<Batch>);
+
+    void TRANSLATION_API Shutdown();
 
     ImmediateContext &FlushBatchAndGetImmediateContext()
     {
@@ -574,20 +541,22 @@ public:
         return m_ImmCtx;
     }
 
-    template <typename TFunc> void AddPostBatchFunction(TFunc&& f)
+    template <typename TFunc> void AddDestroyFunction(TFunc&& f)
     {
-        auto Lock = m_PostBatchExecutionCS.TakeLock();
-        m_bPendingDestroys = true;
-        m_PostBatchFunctions.emplace_back(std::forward<TFunc>(f));
+        {
+            auto Lock = m_SubmissionLock.TakeLock();
+            m_DestructionFunctions.emplace_back(m_BatchRecordingID.load(), std::forward<TFunc>(f));
+        }
+        m_WorkerThreadWakeupCV.notify_one();
     }
     template <typename T>
     void TRANSLATION_API DeleteObject(T* pObject)
     {
-        AddPostBatchFunction([pObject]() { delete pObject; });
+        AddDestroyFunction([pObject]() { delete pObject; });
     }
     void TRANSLATION_API ReleaseResource(Resource* pResource)
     {
-        AddPostBatchFunction([pResource]() { pResource->Release(); });
+        AddDestroyFunction([pResource]() { pResource->Release(); });
     }
 
     void TRANSLATION_API PostSubmit();
@@ -750,6 +719,7 @@ private:
         AddToBatch(m_CurrentBatch, command);
 
         ++m_CurrentCommandCount;
+        ++m_BatchRecordingID;
         SubmitBatchIfIdle();
     }
     template <typename TCmd, typename TEntry> void AddToBatchVariableSize(TCmd const& command, UINT NumEntries, TEntry const* entries);
@@ -764,24 +734,26 @@ private:
     void BatchThread();
 
     template <typename TFunc>
-    bool SyncWithBatch(Batch::Reference& BatchReference, bool DoNotFlush, TFunc&& GetImmObjectFenceValues);
+    bool SyncWithBatch(uint64_t BatchID, bool DoNotFlush, TFunc&& GetImmObjectFenceValues);
 
     std::unique_ptr<Batch> GetIdleBatch();
 
 private: // Referenced by recording and batch threads
     SafeHANDLE m_BatchThread;
-    SafeHANDLE m_BatchSubmittedSemaphore; // Signaled by recording thread to indicate new work available.
     SafeHANDLE m_BatchConsumedSemaphore; // Signaled by batch thread to indicate it's completed work, waited on by main thread when work submitted.
+    std::condition_variable m_WorkerThreadWakeupCV;
 
-    OptLock m_SubmissionLock{ m_CreationArgs.SubmitBatchesToWorkerThread }; // Synchronizes the deques and free page list.
+    OptLock m_SubmissionLock{ m_CreationArgs.SubmitBatchesToWorkerThread || m_CreationArgs.CreatesAndDestroysAreMultithreaded }; // Synchronizes the deques and free page list.
     std::deque<std::unique_ptr<Batch>> m_QueuedBatches;
     std::deque<std::unique_ptr<Batch>> m_FreeBatches;
+    bool m_bShutdown = false;
 
     // Note: Must be declared before BatchStorageAllocator
     FreePageContainer m_FreePages{ m_CreationArgs.SubmitBatchesToWorkerThread };
 
     const Callbacks m_Callbacks;
     std::atomic<bool> m_bFlushPendingCallback;
+    std::atomic<uint64_t> m_CompletedBatchID;
 
 private: // Referenced by recording thread
     CBoundState<UAV, D3D11_1_UAV_SLOT_COUNT> m_UAVs;
@@ -801,18 +773,18 @@ private: // Referenced by recording thread
     static constexpr UINT c_CommandKickoffMinThreshold = 10; // Arbitrary for now
     UINT m_CurrentCommandCount = 0;
     UINT m_NumOutstandingBatches = 0;
+    uint64_t m_CurrentBatchStartingID;
     std::unique_ptr<Batch> m_CurrentRecordingBatch;
 
     BatchStorage m_CurrentBatch{ m_BatchStorageAllocator };
+    std::atomic<uint64_t> m_BatchRecordingID; // Atomic so it can be read from free-threaded app functions, not worker thread.
 
 private: // Written by non-recording application threads, read by recording thread
-    std::atomic<bool> m_bPendingInitialData = false;
-    OptLock m_PreBatchExecutionCS{ m_CreationArgs.CreatesAndDestroysAreMultithreaded };
     BatchStorage m_PreBatchCommands{ m_BatchStorageAllocator };
 
-    std::atomic<bool> m_bPendingDestroys = false;
-    OptLock m_PostBatchExecutionCS{ m_CreationArgs.CreatesAndDestroysAreMultithreaded };;
-    std::vector<std::function<void()>> m_PostBatchFunctions;
+private: // Written by any application thread, read by worker thread
+    std::deque<std::pair<uint64_t, std::function<void()>>> m_DestructionFunctions;
+    std::deque<std::pair<uint64_t, UINT>> m_RequestedFlushes;
 };
 
 struct BatchedDeleter
