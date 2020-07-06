@@ -1706,7 +1706,7 @@ void BatchedContext::ProcessBatchWork(BatchStorage& batch)
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-void TRANSLATION_API BatchedContext::ProcessBatch()
+bool TRANSLATION_API BatchedContext::ProcessBatch()
 {
     assert(!IsBatchThread());
     assert(m_CreationArgs.pParentContext == nullptr);
@@ -1714,7 +1714,7 @@ void TRANSLATION_API BatchedContext::ProcessBatch()
     {
         auto Lock = m_RecordingLock.TakeLock();
         SubmitBatch();
-        WaitForBatchThreadIdle();
+        return WaitForBatchThreadIdle();
     }
     else
     {
@@ -1732,7 +1732,9 @@ void TRANSLATION_API BatchedContext::ProcessBatch()
             m_PendingDestructionMemorySize = 0;
         });
 
+        bool bRet = !m_CurrentBatch.empty() || !m_PostBatchFunctions.empty();
         ProcessBatchWork(m_CurrentBatch); // throws
+        return bRet;
     }
 }
 
@@ -1816,21 +1818,20 @@ void TRANSLATION_API BatchedContext::RetireBatch(std::unique_ptr<Batch> pBatch)
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-void TRANSLATION_API BatchedContext::SubmitBatch(bool bFlushImmCtxAfterBatch)
+bool TRANSLATION_API BatchedContext::SubmitBatch(bool bFlushImmCtxAfterBatch)
 {
     assert(!IsBatchThread());
     assert(m_CreationArgs.pParentContext == nullptr);
 
     if (!m_CreationArgs.SubmitBatchesToWorkerThread)
     {
-        ProcessBatch();
-        return;
+        return ProcessBatch();
     }
 
     auto pBatch = FinishBatch(bFlushImmCtxAfterBatch);
     if (!pBatch)
     {
-        return;
+        return false;
     }
 
     {
@@ -1856,6 +1857,7 @@ void TRANSLATION_API BatchedContext::SubmitBatch(bool bFlushImmCtxAfterBatch)
 
         ++m_NumOutstandingBatches;
     }
+    return true;
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
@@ -1872,13 +1874,16 @@ void TRANSLATION_API BatchedContext::SubmitBatchIfIdle()
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-void BatchedContext::WaitForBatchThreadIdle()
+bool BatchedContext::WaitForBatchThreadIdle()
 {
     assert(!IsBatchThread());
+    bool bRet = false;
     while (m_NumOutstandingBatches)
     {
+        bRet = true;
         WaitForSingleBatch(INFINITE);
     }
+    return bRet;
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
