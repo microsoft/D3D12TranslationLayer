@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 #pragma once
+#include <condition_variable>
 
 namespace D3D12TranslationLayer
 {
@@ -20,7 +21,7 @@ class FreePageContainer
 public:
     class LockedAdder
     {
-        std::unique_lock<std::mutex> m_Lock;
+        std::unique_lock<std::recursive_mutex> m_Lock;
         void*& m_FreePageHead;
 
     public:
@@ -545,7 +546,7 @@ public:
     {
         {
             auto Lock = m_SubmissionLock.TakeLock();
-            m_DestructionFunctions.emplace_back(m_BatchRecordingID.load(), std::forward<TFunc>(f));
+            m_DestructionFunctions.emplace_back(m_BatchRecordingID, std::forward<TFunc>(f));
         }
         m_WorkerThreadWakeupCV.notify_one();
     }
@@ -556,7 +557,13 @@ public:
     }
     void TRANSLATION_API ReleaseResource(Resource* pResource)
     {
+        auto Size = pResource->GetResourceSize();
         AddDestroyFunction([pResource]() { pResource->Release(); });
+        if (Size >= 32 * 1024 * 1024)
+        {
+            // For a large resource, flush the current batch
+            SubmitBatch();
+        }
     }
 
     void TRANSLATION_API PostSubmit();
@@ -716,6 +723,7 @@ private:
     template <typename TCmd> void AddToBatch(BatchStorage& CurrentBatch, TCmd const& command);
     template <typename TCmd> void AddToBatch(TCmd const& command)
     {
+        auto Lock = m_SubmissionLock.TakeLock();
         AddToBatch(m_CurrentBatch, command);
 
         ++m_CurrentCommandCount;
@@ -741,7 +749,7 @@ private:
 private: // Referenced by recording and batch threads
     SafeHANDLE m_BatchThread;
     SafeHANDLE m_BatchConsumedSemaphore; // Signaled by batch thread to indicate it's completed work, waited on by main thread when work submitted.
-    std::condition_variable m_WorkerThreadWakeupCV;
+    std::condition_variable_any m_WorkerThreadWakeupCV;
 
     OptLock m_SubmissionLock{ m_CreationArgs.SubmitBatchesToWorkerThread || m_CreationArgs.CreatesAndDestroysAreMultithreaded }; // Synchronizes the deques and free page list.
     std::deque<std::unique_ptr<Batch>> m_QueuedBatches;
@@ -777,7 +785,7 @@ private: // Referenced by recording thread
     std::unique_ptr<Batch> m_CurrentRecordingBatch;
 
     BatchStorage m_CurrentBatch{ m_BatchStorageAllocator };
-    std::atomic<uint64_t> m_BatchRecordingID; // Atomic so it can be read from free-threaded app functions, not worker thread.
+    uint64_t m_BatchRecordingID;
 
 private: // Written by non-recording application threads, read by recording thread
     BatchStorage m_PreBatchCommands{ m_BatchStorageAllocator };

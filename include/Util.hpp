@@ -494,11 +494,11 @@ namespace D3D12TranslationLayer
 
     class OptLock
     {
-        mutable std::optional<std::mutex> m_Lock;
+        mutable std::optional<std::recursive_mutex> m_Lock;
     public:
-        std::unique_lock<std::mutex> TakeLock() const
+        std::unique_lock<std::recursive_mutex> TakeLock() const
         {
-            return m_Lock ? std::unique_lock<std::mutex>(*m_Lock) : std::unique_lock<std::mutex>();
+            return m_Lock ? std::unique_lock<std::recursive_mutex>(*m_Lock) : std::unique_lock<std::recursive_mutex>();
         }
         OptLock(bool bHaveLock = false)
         {

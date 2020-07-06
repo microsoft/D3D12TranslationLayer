@@ -727,7 +727,7 @@ template <typename T> class COptLockedContainer
 public:
     class LockedAccess
     {
-        std::unique_lock<std::mutex> m_Lock;
+        std::unique_lock<std::recursive_mutex> m_Lock;
         T& m_Obj;
     public:
         LockedAccess(OptLock &CS, T& Obj)

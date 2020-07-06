@@ -719,6 +719,7 @@ void BatchedContext::AddToBatch(BatchStorage& CurrentBatch, TCmd const& command)
 template <typename TCmd, typename TEntry>
 void BatchedContext::AddToBatchVariableSize(TCmd const& command, UINT NumEntries, TEntry const* entries)
 {
+    auto Lock = m_SubmissionLock.TakeLock();
     assert(!IsBatchThread());
     static_assert(std::is_trivially_destructible<TCmd>::value, "Destructors don't get called on batched commands.");
     struct Temp { UINT CommandValue; TCmd Command; TEntry FirstEntry; };
@@ -745,6 +746,7 @@ void BatchedContext::AddToBatchVariableSize(TCmd const& command, UINT NumEntries
 template <typename TCmd, typename... Args>
 void BatchedContext::EmplaceInBatch(Args&&... args)
 {
+    auto Lock = m_SubmissionLock.TakeLock();
     assert(!IsBatchThread());
     static_assert(std::is_trivially_destructible<TCmd>::value, "Destructors don't get called on batched commands.");
     const size_t CommandSize = TCmd::GetCommandSize(std::forward<Args>(args)...);
@@ -1116,6 +1118,7 @@ void TRANSLATION_API BatchedContext::UploadInitialData(Resource* pDst, D3D12Tran
 
     if (PrepareHelper.FinalizeNeeded) // Might have been written directly to the destination.
     {
+        auto Lock = m_SubmissionLock.TakeLock();
         auto AddToBatchImpl = [&](BatchStorage& batch)
         {
             if (PrepareHelper.bUseLocalPlacement)
@@ -1129,7 +1132,6 @@ void TRANSLATION_API BatchedContext::UploadInitialData(Resource* pDst, D3D12Tran
         };
         if (m_CreationArgs.CreatesAndDestroysAreMultithreaded)
         {
-            auto Lock = m_SubmissionLock.TakeLock();
             ++m_BatchRecordingID;
             AddToBatchImpl(m_PreBatchCommands);
         }
@@ -1319,7 +1321,7 @@ void TRANSLATION_API BatchedContext::QueryBegin(BatchedQuery* pAsync)
 
     if (m_CreationArgs.SubmitBatchesToWorkerThread)
     {
-        pAsync->m_BatchID = m_BatchRecordingID.load() + 1;
+        pAsync->m_BatchID = m_BatchRecordingID + 1;
     }
 
     AddToBatch(CmdQueryBegin{ pAsync->GetImmediateNoFlush() });
@@ -1337,7 +1339,7 @@ void TRANSLATION_API BatchedContext::QueryEnd(BatchedQuery* pAsync)
 
     if (m_CreationArgs.SubmitBatchesToWorkerThread)
     {
-        pAsync->m_BatchID = m_BatchRecordingID.load() + 1;
+        pAsync->m_BatchID = m_BatchRecordingID + 1;
     }
 
     AddToBatch(CmdQueryEnd{ pAsync->GetImmediateNoFlush() });
@@ -1519,7 +1521,6 @@ void TRANSLATION_API BatchedContext::SetHardwareProtectionState(BOOL state)
 void TRANSLATION_API BatchedContext::BatchExtension(BatchedExtension* pExt, const void* pData, size_t DataSize)
 {
     EmplaceInBatch<CmdExtension>(pExt, pData, DataSize);
-    ++m_BatchRecordingID;
 }
 
 BatchedContext::CmdExtension::CmdExtension(BatchedExtension* pExt, const void* pData, size_t DataSize)
@@ -1735,14 +1736,14 @@ void TRANSLATION_API BatchedContext::ProcessBatch()
             auto Lock = m_SubmissionLock.TakeLock();
             for (auto& pair : m_DestructionFunctions)
             {
-                assert(pair.first <= m_BatchRecordingID.load());
+                assert(pair.first <= m_BatchRecordingID);
                 pair.second();
             }
             m_DestructionFunctions.clear();
 
             m_CurrentCommandCount = 0;
-            m_CompletedBatchID.store(m_BatchRecordingID.load());
-            m_CurrentBatchStartingID = m_BatchRecordingID.load();
+            m_CompletedBatchID.store(m_BatchRecordingID);
+            m_CurrentBatchStartingID = m_BatchRecordingID;
         });
 
         {
@@ -1780,7 +1781,7 @@ std::unique_ptr<BatchedContext::Batch> BatchedContext::FinishBatch()
     std::swap(m_PreBatchCommands, NewPreBatch);
     std::swap(m_CurrentBatch, NewBatch);
 
-    m_CurrentRecordingBatch->PrepareToSubmit(std::move(NewPreBatch), std::move(NewBatch), m_BatchRecordingID.load());
+    m_CurrentRecordingBatch->PrepareToSubmit(std::move(NewPreBatch), std::move(NewBatch), m_BatchRecordingID);
     auto pRet = std::move(m_CurrentRecordingBatch);
 
     if (m_CreationArgs.pParentContext != nullptr)
@@ -1795,7 +1796,7 @@ std::unique_ptr<BatchedContext::Batch> BatchedContext::FinishBatch()
 
     m_CurrentRecordingBatch = GetIdleBatch();
     m_CurrentCommandCount = 0;
-    m_CurrentBatchStartingID = m_BatchRecordingID.load();
+    m_CurrentBatchStartingID = m_BatchRecordingID;
 
     return std::move(pRet);
 }
@@ -1850,22 +1851,21 @@ void TRANSLATION_API BatchedContext::SubmitBatch(bool bFlushImmCtxAfterBatch)
         m_QueuedBatches.emplace_back(std::move(pBatch));
         if (bFlushImmCtxAfterBatch)
         {
-            m_RequestedFlushes.emplace_back(m_BatchRecordingID.load(), COMMAND_LIST_TYPE_ALL_MASK);
+            m_RequestedFlushes.emplace_back(m_BatchRecordingID, COMMAND_LIST_TYPE_ALL_MASK);
         }
-    }
 
-    // Check if there's room in the semaphores.
-    assert(m_NumOutstandingBatches <= c_MaxOutstandingBatches);
-    if (m_NumOutstandingBatches == c_MaxOutstandingBatches)
-    {
-        WaitForSingleBatch(INFINITE);
-        assert(m_NumOutstandingBatches < c_MaxOutstandingBatches);
+        // Check if there's room in the semaphores.
+        assert(m_NumOutstandingBatches <= c_MaxOutstandingBatches);
+        if (m_NumOutstandingBatches == c_MaxOutstandingBatches)
+        {
+            WaitForSingleBatch(INFINITE);
+            assert(m_NumOutstandingBatches < c_MaxOutstandingBatches);
+        }
+        ++m_NumOutstandingBatches;
     }
 
     // Wake up the batch thread
     m_WorkerThreadWakeupCV.notify_one();
-
-    ++m_NumOutstandingBatches;
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
