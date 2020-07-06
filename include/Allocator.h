@@ -98,7 +98,7 @@ namespace D3D12TranslationLayer
         using DisjointBuddyHeapAllocator::IsOwner;
 
     private:
-        OptLock m_Lock;
+        OptLock<> m_Lock;
     };
 
     // Allocator that will conditionally choose to individually allocate resources or suballocate based on a 

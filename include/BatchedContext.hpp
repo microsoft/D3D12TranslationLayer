@@ -14,7 +14,7 @@ struct BatchedExtension
 
 class FreePageContainer
 {
-    OptLock m_CS;
+    OptLock<> m_CS;
     void* m_FreePageHead = nullptr;
 
 public:
@@ -773,7 +773,7 @@ private: // Referenced by recording and batch threads
     SafeHANDLE m_BatchSubmittedSemaphore; // Signaled by recording thread to indicate new work available.
     SafeHANDLE m_BatchConsumedSemaphore; // Signaled by batch thread to indicate it's completed work, waited on by main thread when work submitted.
 
-    OptLock m_SubmissionLock{ m_CreationArgs.SubmitBatchesToWorkerThread }; // Synchronizes the deques and free page list.
+    OptLock<> m_SubmissionLock{ m_CreationArgs.SubmitBatchesToWorkerThread }; // Synchronizes the deques and free page list.
     std::deque<std::unique_ptr<Batch>> m_QueuedBatches;
     std::deque<std::unique_ptr<Batch>> m_FreeBatches;
 
@@ -807,11 +807,11 @@ private: // Referenced by recording thread
 
 private: // Written by non-recording application threads, read by recording thread
     std::atomic<bool> m_bPendingInitialData = false;
-    OptLock m_PreBatchExecutionCS{ m_CreationArgs.CreatesAndDestroysAreMultithreaded };
+    OptLock<> m_PreBatchExecutionCS{ m_CreationArgs.CreatesAndDestroysAreMultithreaded };
     BatchStorage m_PreBatchCommands{ m_BatchStorageAllocator };
 
     std::atomic<bool> m_bPendingDestroys = false;
-    OptLock m_PostBatchExecutionCS{ m_CreationArgs.CreatesAndDestroysAreMultithreaded };;
+    OptLock<> m_PostBatchExecutionCS{ m_CreationArgs.CreatesAndDestroysAreMultithreaded };;
     std::vector<std::function<void()>> m_PostBatchFunctions;
 };
 
