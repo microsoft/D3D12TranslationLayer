@@ -492,13 +492,14 @@ namespace D3D12TranslationLayer
         seed ^= hasher(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
     }
 
+    template <typename mutex_t = std::mutex>
     class OptLock
     {
-        mutable std::optional<std::mutex> m_Lock;
+        mutable std::optional<mutex_t> m_Lock;
     public:
-        std::unique_lock<std::mutex> TakeLock() const
+        std::unique_lock<mutex_t> TakeLock() const
         {
-            return m_Lock ? std::unique_lock<std::mutex>(*m_Lock) : std::unique_lock<std::mutex>();
+            return m_Lock ? std::unique_lock<mutex_t>(*m_Lock) : std::unique_lock<mutex_t>();
         }
         OptLock(bool bHaveLock = false)
         {

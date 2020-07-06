@@ -171,7 +171,7 @@ protected:
 
 protected:
     TMultiPool m_MultiPool;
-    OptLock m_Lock;
+    OptLock<> m_Lock;
     UINT64 m_TrimThreshold;
 };
 
@@ -461,7 +461,7 @@ private: // Members
     const D3D12_DESCRIPTOR_HEAP_DESC m_Desc;
     const UINT m_DescriptorSize;
     ID3D12Device* const m_pDevice; // weak-ref
-    OptLock m_CritSect;
+    OptLock<> m_CritSect;
 
     THeapMap m_Heaps;
     std::list<HeapIndex> m_FreeHeaps;
@@ -720,17 +720,17 @@ private:
     std::queue<RetiredSuballocationBlock> m_DeferredSuballocationDeletionQueue;
 };
 
-template <typename T> class COptLockedContainer
+template <typename T, typename mutex_t = std::mutex> class COptLockedContainer
 {
-    OptLock m_CS;
+    OptLock<mutex_t> m_CS;
     T m_Obj;
 public:
     class LockedAccess
     {
-        std::unique_lock<std::mutex> m_Lock;
+        std::unique_lock<mutex_t> m_Lock;
         T& m_Obj;
     public:
-        LockedAccess(OptLock &CS, T& Obj)
+        LockedAccess(OptLock<mutex_t> &CS, T& Obj)
             : m_Lock(CS.TakeLock())
             , m_Obj(Obj) { }
         T* operator->() { return &m_Obj; }
