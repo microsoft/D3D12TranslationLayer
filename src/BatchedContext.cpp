@@ -718,6 +718,7 @@ template <typename TCmd, typename TEntry>
 void BatchedContext::AddToBatchVariableSize(TCmd const& command, UINT NumEntries, TEntry const* entries)
 {
     assert(!IsBatchThread());
+    auto Lock = m_RecordingLock.TakeLock();
     static_assert(std::is_trivially_destructible<TCmd>::value, "Destructors don't get called on batched commands.");
     struct Temp { UINT CommandValue; TCmd Command; TEntry FirstEntry; };
 
@@ -743,6 +744,7 @@ template <typename TCmd, typename... Args>
 void BatchedContext::EmplaceInBatch(Args&&... args)
 {
     assert(!IsBatchThread());
+    auto Lock = m_RecordingLock.TakeLock();
     static_assert(std::is_trivially_destructible<TCmd>::value, "Destructors don't get called on batched commands.");
     const size_t CommandSize = TCmd::GetCommandSize(std::forward<Args>(args)...);
     // GetCommandSize must ensure size is aligned correctly.
@@ -1112,30 +1114,18 @@ void TRANSLATION_API BatchedContext::UploadInitialData(Resource* pDst, D3D12Tran
 
     if (PrepareHelper.FinalizeNeeded) // Might have been written directly to the destination.
     {
-        auto AddToBatchImpl = [&](BatchStorage& batch)
+        auto AddToBatchImpl = [&]()
         {
             if (PrepareHelper.bUseLocalPlacement)
             {
-                AddToBatch(batch, CmdFinalizeUpdateSubresourcesWithLocalPlacement{ pDst, PrepareHelper.PreparedStorage });
+                AddToBatch(CmdFinalizeUpdateSubresourcesWithLocalPlacement{ pDst, PrepareHelper.PreparedStorage });
             }
             else
             {
-                AddToBatch(batch, CmdFinalizeUpdateSubresources{ pDst, PrepareHelper.PreparedStorage.Base });
+                AddToBatch(CmdFinalizeUpdateSubresources{ pDst, PrepareHelper.PreparedStorage.Base });
             }
         };
-        if (m_CreationArgs.CreatesAndDestroysAreMultithreaded)
-        {
-            auto Lock = m_PreBatchExecutionCS.TakeLock();
-            m_bPendingInitialData = true;
-            AddToBatchImpl(m_PreBatchCommands);
-        }
-        else
-        {
-            AddToBatchImpl(m_CurrentBatch);
-
-            ++m_CurrentCommandCount;
-            SubmitBatchIfIdle();
-        }
+        AddToBatchImpl();
     }
 }
 
@@ -1722,34 +1712,24 @@ void TRANSLATION_API BatchedContext::ProcessBatch()
     assert(m_CreationArgs.pParentContext == nullptr);
     if (m_CreationArgs.SubmitBatchesToWorkerThread)
     {
+        auto Lock = m_RecordingLock.TakeLock();
         SubmitBatch();
         WaitForBatchThreadIdle();
     }
     else
     {
         // Ensure destroys are executed even if a batch function errors out.
+        auto Lock = m_RecordingLock.TakeLock();
         auto FunctionExit = MakeScopeExit([this]()
         {
-            if (m_bPendingDestroys)
+            for (auto& fn : m_PostBatchFunctions)
             {
-                auto Lock = m_PostBatchExecutionCS.TakeLock();
-                for (auto& fn : m_PostBatchFunctions)
-                {
-                    fn();
-                }
-                m_PostBatchFunctions.clear();
-                m_bPendingDestroys = false;
+                fn();
             }
+            m_PostBatchFunctions.clear();
 
             m_CurrentCommandCount = 0;
         });
-
-        if (m_bPendingInitialData)
-        {
-            auto Lock = m_PreBatchExecutionCS.TakeLock();
-            m_bPendingInitialData = false;
-            ProcessBatchWork(m_PreBatchCommands); // throws
-        }
 
         ProcessBatchWork(m_CurrentBatch); // throws
     }
@@ -1778,32 +1758,30 @@ std::unique_ptr<BatchedContext::Batch> BatchedContext::GetIdleBatch()
 std::unique_ptr<BatchedContext::Batch> BatchedContext::FinishBatch(bool bFlushImmCtxAfterBatch)
 {
     assert(!IsBatchThread());
-    BatchStorage NewPreBatch(m_BatchStorageAllocator);
     BatchStorage NewBatch(m_BatchStorageAllocator);
     std::vector<std::function<void()>> NewPostBatchFunctions;
+    std::unique_ptr<Batch> pRet;
 
-    if (m_bPendingInitialData)
+    // Synchronize with threads recording to the batch
     {
-        auto Lock = m_PreBatchExecutionCS.TakeLock();
-        std::swap(m_PreBatchCommands, NewPreBatch);
-        m_bPendingInitialData = false;
-    }
-
-    std::swap(m_CurrentBatch, NewBatch);
-
-    if (m_bPendingDestroys)
-    {
-        auto Lock = m_PostBatchExecutionCS.TakeLock();
+        auto Lock = m_RecordingLock.TakeLock();
+        if (m_CurrentBatch.empty() && m_PostBatchFunctions.empty())
+        {
+            return nullptr;
+        }
+        std::swap(m_CurrentBatch, NewBatch);
         std::swap(m_PostBatchFunctions, NewPostBatchFunctions);
-        m_bPendingDestroys = false;
+
+        m_CurrentRecordingBatch->PrepareToSubmit(std::move(NewBatch), std::move(NewPostBatchFunctions), bFlushImmCtxAfterBatch);
+        pRet = std::move(m_CurrentRecordingBatch);
+        m_CurrentCommandCount = 0;
     }
 
-    auto Lock = m_SubmissionLock.TakeLock();
-    m_CurrentRecordingBatch->PrepareToSubmit(std::move(NewPreBatch), std::move(NewBatch), std::move(NewPostBatchFunctions), bFlushImmCtxAfterBatch);
-    auto pRet = std::move(m_CurrentRecordingBatch);
-
-    m_CurrentRecordingBatch = GetIdleBatch();
-    m_CurrentCommandCount = 0;
+    // Synchronize with the worker thread potentially retiring batches
+    {
+        auto Lock = m_SubmissionLock.TakeLock();
+        m_CurrentRecordingBatch = GetIdleBatch();
+    }
 
     return std::move(pRet);
 }
@@ -1840,11 +1818,6 @@ void TRANSLATION_API BatchedContext::SubmitBatch(bool bFlushImmCtxAfterBatch)
 {
     assert(!IsBatchThread());
     assert(m_CreationArgs.pParentContext == nullptr);
-    if (!m_bPendingInitialData && m_CurrentBatch.empty() && !m_bPendingDestroys)
-    {
-        // Nothing to do.
-        return;
-    }
 
     if (!m_CreationArgs.SubmitBatchesToWorkerThread)
     {
@@ -1853,26 +1826,34 @@ void TRANSLATION_API BatchedContext::SubmitBatch(bool bFlushImmCtxAfterBatch)
     }
 
     auto pBatch = FinishBatch(bFlushImmCtxAfterBatch);
+    if (!pBatch)
+    {
+        return;
+    }
 
     {
         auto Lock = m_SubmissionLock.TakeLock();
         m_QueuedBatches.emplace_back(std::move(pBatch));
     }
 
-    // Check if there's room in the semaphores.
-    assert(m_NumOutstandingBatches <= c_MaxOutstandingBatches);
-    if (m_NumOutstandingBatches == c_MaxOutstandingBatches)
     {
-        WaitForSingleBatch(INFINITE);
-        assert(m_NumOutstandingBatches < c_MaxOutstandingBatches);
+        auto Lock = m_RecordingLock.TakeLock();
+
+        // Check if there's room in the semaphores.
+        assert(m_NumOutstandingBatches <= c_MaxOutstandingBatches);
+        if (m_NumOutstandingBatches == c_MaxOutstandingBatches)
+        {
+            WaitForSingleBatch(INFINITE);
+            assert(m_NumOutstandingBatches < c_MaxOutstandingBatches);
+        }
+
+        // Wake up the batch thread
+        BOOL value = ReleaseSemaphore(m_BatchSubmittedSemaphore, 1, nullptr);
+        assert(value == TRUE);
+        UNREFERENCED_PARAMETER(value);
+
+        ++m_NumOutstandingBatches;
     }
-
-    // Wake up the batch thread
-    BOOL value = ReleaseSemaphore(m_BatchSubmittedSemaphore, 1, nullptr);
-    assert(value == TRUE);
-    UNREFERENCED_PARAMETER(value);
-
-    ++m_NumOutstandingBatches;
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
@@ -1934,7 +1915,6 @@ void BatchedContext::ProcessBatchImpl(Batch* pBatchToProcess)
 {
     try
     {
-        ProcessBatchWork(pBatchToProcess->m_PreBatchCommands); // throws
         ProcessBatchWork(pBatchToProcess->m_BatchCommands); // throws
     }
     catch (_com_error& hrEx) { m_Callbacks.ThreadErrorCallback(hrEx.Error()); }
@@ -2068,15 +2048,10 @@ void BatchedContext::Batch::Retire(FreePageContainer& FreePages) noexcept
 {
     SetEvent(m_hCPUCompletionEvent);
     FreePageContainer::LockedAdder Adder(FreePages);
-    for (auto& segment : m_PreBatchCommands.m_segments)
-    {
-        Adder.AddPage(segment.begin());
-    }
     for (auto& segment : m_BatchCommands.m_segments)
     {
         Adder.AddPage(segment.begin());
     }
-    m_PreBatchCommands.m_segments.clear();
     m_BatchCommands.m_segments.clear();
     m_PostBatchFunctions.clear();
 }
@@ -2090,9 +2065,8 @@ void BatchedContext::Batch::Reset() noexcept
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-void BatchedContext::Batch::PrepareToSubmit(BatchStorage PreBatchCommands, BatchStorage BatchCommands, std::vector<std::function<void()>> PostBatchFunctions, bool bRequestFlush)
+void BatchedContext::Batch::PrepareToSubmit(BatchStorage BatchCommands, std::vector<std::function<void()>> PostBatchFunctions, bool bRequestFlush)
 {
-    m_PreBatchCommands = std::move(PreBatchCommands);
     m_BatchCommands = std::move(BatchCommands);
     m_PostBatchFunctions = std::move(PostBatchFunctions);
     m_FlushRequestedMask |= bRequestFlush ? COMMAND_LIST_TYPE_ALL_MASK : 0;
