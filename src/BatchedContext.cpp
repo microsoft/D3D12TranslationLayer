@@ -1729,6 +1729,7 @@ void TRANSLATION_API BatchedContext::ProcessBatch()
             m_PostBatchFunctions.clear();
 
             m_CurrentCommandCount = 0;
+            m_PendingDestructionMemorySize = 0;
         });
 
         ProcessBatchWork(m_CurrentBatch); // throws
@@ -1775,6 +1776,7 @@ std::unique_ptr<BatchedContext::Batch> BatchedContext::FinishBatch(bool bFlushIm
         m_CurrentRecordingBatch->PrepareToSubmit(std::move(NewBatch), std::move(NewPostBatchFunctions), bFlushImmCtxAfterBatch);
         pRet = std::move(m_CurrentRecordingBatch);
         m_CurrentCommandCount = 0;
+        m_PendingDestructionMemorySize = 0;
     }
 
     // Synchronize with the worker thread potentially retiring batches
