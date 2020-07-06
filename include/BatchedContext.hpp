@@ -552,8 +552,8 @@ public:
     BatchedContext(ImmediateContext& ImmCtx, CreationArgs flags, Callbacks const& callbacks);
     ~BatchedContext();
 
-    void TRANSLATION_API ProcessBatch();
-    void TRANSLATION_API SubmitBatch(bool bFlushImmCtxAfterBatch = false);
+    bool TRANSLATION_API ProcessBatch();
+    bool TRANSLATION_API SubmitBatch(bool bFlushImmCtxAfterBatch = false);
     Batch::Reference TRANSLATION_API GetCurrentRecordingBatch();
     void TRANSLATION_API SubmitBatchIfIdle();
 
@@ -762,7 +762,7 @@ private:
     template <typename TCmd, typename... Args> void EmplaceInBatch(Args&&... args);
     void ProcessBatchWork(BatchStorage& batch);
 
-    void WaitForBatchThreadIdle();
+    bool WaitForBatchThreadIdle();
     bool IsBatchThreadIdle();
     bool WaitForSingleBatch(DWORD timeout);
     bool IsBatchThread();
