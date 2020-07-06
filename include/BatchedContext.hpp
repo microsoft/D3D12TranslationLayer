@@ -58,7 +58,6 @@ public:
         friend class BatchedContext;
 
         int m_RefCount = 0;
-        BatchStorage m_PreBatchCommands;
         BatchStorage m_BatchCommands;
         std::vector<std::function<void()>> m_PostBatchFunctions;
         ThrowingSafeHandle m_hCPUCompletionEvent{ CreateEvent(nullptr, TRUE, FALSE, nullptr) };
@@ -69,13 +68,12 @@ public:
         UINT m_FlushRequestedMask = 0;
 
         Batch(BatchStorageAllocator const& allocator)
-            : m_PreBatchCommands(std::nothrow, allocator)
-            , m_BatchCommands(std::nothrow, allocator)
+            : m_BatchCommands(std::nothrow, allocator)
         {
         }
         void Retire(FreePageContainer& FreePages) noexcept;
         void Reset() noexcept;
-        void PrepareToSubmit(BatchStorage PreBatchCommands, BatchStorage BatchCommands, std::vector<std::function<void()>> PostBatchFunctions, bool bRequestFlush);
+        void PrepareToSubmit(BatchStorage BatchCommands, std::vector<std::function<void()>> PostBatchFunctions, bool bRequestFlush);
 
     public:
         class Reference
@@ -576,8 +574,7 @@ public:
 
     template <typename TFunc> void AddPostBatchFunction(TFunc&& f)
     {
-        auto Lock = m_PostBatchExecutionCS.TakeLock();
-        m_bPendingDestroys = true;
+        auto Lock = m_RecordingLock.TakeLock();
         m_PostBatchFunctions.emplace_back(std::forward<TFunc>(f));
     }
     template <typename T>
@@ -719,6 +716,7 @@ public:
     template <typename TExt, typename... Args> void EmplaceBatchExtension(BatchedExtension* pExt, Args&&... args)
     {
         assert(!IsBatchThread());
+        auto Lock = m_RecordingLock.TakeLock();
         static_assert(std::is_trivially_destructible<TExt>::value, "Destructors don't get called on batched commands.");
         const size_t ExtensionSize = TExt::GetExtensionSize(std::forward<Args>(args)...);
         const size_t CommandSize = CmdExtension::GetCommandSize(pExt, nullptr, ExtensionSize);
@@ -747,6 +745,7 @@ private:
     template <typename TCmd> void AddToBatch(BatchStorage& CurrentBatch, TCmd const& command);
     template <typename TCmd> void AddToBatch(TCmd const& command)
     {
+        auto Lock = m_RecordingLock.TakeLock();
         AddToBatch(m_CurrentBatch, command);
 
         ++m_CurrentCommandCount;
@@ -799,6 +798,7 @@ private: // Referenced by recording thread
     };
 
     static constexpr UINT c_CommandKickoffMinThreshold = 10; // Arbitrary for now
+    OptLock<std::recursive_mutex> m_RecordingLock{ m_CreationArgs.CreatesAndDestroysAreMultithreaded };
     UINT m_CurrentCommandCount = 0;
     UINT m_NumOutstandingBatches = 0;
     std::unique_ptr<Batch> m_CurrentRecordingBatch;
@@ -806,12 +806,6 @@ private: // Referenced by recording thread
     BatchStorage m_CurrentBatch{ m_BatchStorageAllocator };
 
 private: // Written by non-recording application threads, read by recording thread
-    std::atomic<bool> m_bPendingInitialData = false;
-    OptLock<> m_PreBatchExecutionCS{ m_CreationArgs.CreatesAndDestroysAreMultithreaded };
-    BatchStorage m_PreBatchCommands{ m_BatchStorageAllocator };
-
-    std::atomic<bool> m_bPendingDestroys = false;
-    OptLock<> m_PostBatchExecutionCS{ m_CreationArgs.CreatesAndDestroysAreMultithreaded };;
     std::vector<std::function<void()>> m_PostBatchFunctions;
 };
 
