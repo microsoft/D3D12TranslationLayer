@@ -584,7 +584,14 @@ public:
     }
     void TRANSLATION_API ReleaseResource(Resource* pResource)
     {
-        AddPostBatchFunction([pResource]() { pResource->Release(); });
+        auto Lock = m_RecordingLock.TakeLock();
+        auto Size = pResource->GetResourceSize();
+        m_PostBatchFunctions.emplace_back([pResource]() { pResource->Release(); });
+        m_PendingDestructionMemorySize += Size;
+        if (m_PendingDestructionMemorySize >= 64 * 1024 * 1024)
+        {
+            SubmitBatch();
+        }
     }
 
     void TRANSLATION_API PostSubmit();
@@ -807,6 +814,7 @@ private: // Referenced by recording thread
 
 private: // Written by non-recording application threads, read by recording thread
     std::vector<std::function<void()>> m_PostBatchFunctions;
+    uint64_t m_PendingDestructionMemorySize = 0;
 };
 
 struct BatchedDeleter
