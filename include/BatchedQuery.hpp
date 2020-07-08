@@ -20,6 +20,6 @@ namespace D3D12TranslationLayer
         Async* FlushBatchAndGetImmediate() { ProcessBatch(); return m_pImmediateAsyncWeak; }
 
         Async::AsyncState m_CurrentState = Async::AsyncState::Ended;
-        BatchedContext::Batch::Reference m_BatchReference;
+        uint64_t m_BatchReferenceID = 0;
     };
 }

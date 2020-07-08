@@ -647,10 +647,6 @@ BatchedContext::BatchedContext(ImmediateContext& ImmCtx, CreationArgs args, Call
     , m_DispatchTable(DispatchArray)
     , m_Callbacks(callbacks)
 {
-    if (args.SubmitBatchesToWorkerThread || args.pParentContext)
-    {
-        m_CurrentRecordingBatch.reset(new Batch(m_BatchStorageAllocator));
-    }
     if (args.SubmitBatchesToWorkerThread)
     {
         m_BatchSubmittedSemaphore.m_h = CreateSemaphore(nullptr, 0, c_MaxOutstandingBatches, nullptr);
@@ -1302,10 +1298,8 @@ void TRANSLATION_API BatchedContext::QueryBegin(BatchedQuery* pAsync)
         QueryEnd(pAsync);
     }
 
-    if (m_CreationArgs.SubmitBatchesToWorkerThread)
-    {
-        pAsync->m_BatchReference = GetCurrentRecordingBatch();
-    }
+    auto Lock = m_RecordingLock.TakeLock();
+    pAsync->m_BatchReferenceID = m_RecordingBatchID;
 
     AddToBatch(CmdQueryBegin{ pAsync->GetImmediateNoFlush() });
     pAsync->m_CurrentState = Async::AsyncState::Begun;
@@ -1320,10 +1314,8 @@ void TRANSLATION_API BatchedContext::QueryEnd(BatchedQuery* pAsync)
         QueryBegin(pAsync);
     }
 
-    if (m_CreationArgs.SubmitBatchesToWorkerThread)
-    {
-        pAsync->m_BatchReference = GetCurrentRecordingBatch();
-    }
+    auto Lock = m_RecordingLock.TakeLock();
+    pAsync->m_BatchReferenceID = m_RecordingBatchID;
 
     AddToBatch(CmdQueryEnd{ pAsync->GetImmediateNoFlush() });
     pAsync->m_CurrentState = Async::AsyncState::Ended;
@@ -1331,42 +1323,67 @@ void TRANSLATION_API BatchedContext::QueryEnd(BatchedQuery* pAsync)
 
 //----------------------------------------------------------------------------------------------------------------------------------
 template <typename TFunc>
-bool BatchedContext::SyncWithBatch(Batch::Reference& BatchReference, bool DoNotFlush, TFunc&& GetImmObjectFenceValues)
+bool BatchedContext::SyncWithBatch(uint64_t& BatchID, bool DoNotFlush, TFunc&& GetImmObjectFenceValues)
 {
-    // Not even submitted yet.
-    if (BatchReference == GetCurrentRecordingBatch())
+    {
+        auto RecordingLock = m_RecordingLock.TakeLock();
+        assert(BatchID <= m_RecordingBatchID);
+
+        constexpr uint64_t GenerationIDMask = 0xffffffff00000000ull;
+        if ((BatchID & GenerationIDMask) < (m_RecordingBatchID & GenerationIDMask))
+        {
+            // The batch ID comes from a different "generation" of batches.
+            // Essentially, an object which wants to wait for a specific batch to be done
+            // likely needs to monitor all functions which modify its state.
+            //
+            // If a command list batch is executed, it could modify the object's state
+            // in a way that doesn't update the batch ID to be monitored.
+            // In that case, assume that it could've been modified in the batch currently
+            // being recorded (or the last one if this one's empty)
+            //
+            // Note that each generation starts with ID 1, so this subtraction will never
+            // roll backwards into a previous generation.
+            BatchID = m_CurrentBatch.empty() ? m_RecordingBatchID - 1 : m_RecordingBatchID;
+        }
+
+        // Not even submitted yet.
+        if (BatchID >= m_RecordingBatchID)
+        {
+            if (!DoNotFlush)
+            {
+                // Submit and request flush to GPU as soon as it's done.
+                SubmitBatch(true);
+            }
+            // Theoretically we could avoid this, as the query might actually finish in the time
+            // between here and the checks below, but this fails the conformance tests, so we'll
+            // play it safe and just assume that can't happen.
+            return false;
+        }
+    }
+
+    auto SubmissionLock = m_SubmissionLock.TakeLock();
+
+    if (m_CompletedBatchID < BatchID)
     {
         if (!DoNotFlush)
         {
-            // Submit and request flush to GPU as soon as it's done.
-            SubmitBatch(true);
+            assert(!m_QueuedBatches.empty());
+
+            // Make sure it's marked to flush when it's done.
+            auto iter = std::find_if(m_QueuedBatches.begin(), m_QueuedBatches.end(),
+                                     [&BatchID](std::unique_ptr<Batch> const& p)
+            {
+                return p->m_BatchID > BatchID;
+            });
+            assert(iter != m_QueuedBatches.begin());
+            --iter;
+
+            // We don't know what command list types to use on this timeline, so just request all.
+            (*iter)->m_FlushRequestedMask |= COMMAND_LIST_TYPE_ALL_MASK;
         }
-        // Theoretically we could avoid this, as the query might actually finish in the time
-        // between here and the checks below, but this fails the conformance tests, so we'll
-        // play it safe and just assume that can't happen.
         return false;
     }
 
-    // If we're not going to do anything if it's not done, check before taking the lock.
-    if (DoNotFlush && !BatchReference.IsCPUDone())
-    {
-        return false;
-    }
-
-    auto lock = m_SubmissionLock.TakeLock();
-
-    if (!BatchReference.IsCPUDone())
-    {
-        // Would've already returned before taking the lock.
-        assert(!DoNotFlush);
-
-        // Make sure it's marked to flush when it's done.
-        // We don't know what command list types to use on this timeline, so just request all.
-        BatchReference.RequestFlush(COMMAND_LIST_TYPE_ALL_MASK);
-        return false;
-    }
-
-    assert(BatchReference.IsCPUDone());
     UINT64 FenceValues[(UINT)COMMAND_LIST_TYPE::MAX_VALID] = {};
     GetImmObjectFenceValues(FenceValues);
     if (!DoNotFlush)
@@ -1424,28 +1441,18 @@ bool TRANSLATION_API BatchedContext::QueryGetData(BatchedQuery* pAsync, void* pD
     }
 
     // Check if it's done yet.
-    bool bAsyncGetData = false;
-    if (pAsync->m_BatchReference)
+    if (!SyncWithBatch(pAsync->m_BatchReferenceID, DoNotFlush,
+                       [pAsync](UINT64* pFenceValues)
     {
-        if (!SyncWithBatch(pAsync->m_BatchReference, DoNotFlush,
-                           [pAsync](UINT64* pFenceValues)
-        {
-            auto& EndedCommandListIDs = pAsync->GetImmediateNoFlush()->m_EndedCommandListID;
-            std::copy(EndedCommandListIDs, std::end(EndedCommandListIDs), pFenceValues);
-        }))
-        {
-            return false;
-        }
-        pAsync->m_BatchReference = Batch::Reference();
-        bAsyncGetData = true;
-    }
-    else
+        auto& EndedCommandListIDs = pAsync->GetImmediateNoFlush()->m_EndedCommandListID;
+        std::copy(EndedCommandListIDs, std::end(EndedCommandListIDs), pFenceValues);
+    }))
     {
-        // TODO: Optimize this maybe.
-        ProcessBatch();
+        return false;
     }
 
     ImmediateContext& ImmCtx = GetImmediateContextNoFlush();
+    bool bAsyncGetData = m_CreationArgs.SubmitBatchesToWorkerThread;
     return ImmCtx.QueryGetData(pAsync->GetImmediateNoFlush(), pData, DataSize, DoNotFlush, bAsyncGetData);
 }
 
@@ -1730,6 +1737,14 @@ bool TRANSLATION_API BatchedContext::ProcessBatch()
 
             m_CurrentCommandCount = 0;
             m_PendingDestructionMemorySize = 0;
+            m_CompletedBatchID = m_RecordingBatchID;
+
+            ++m_RecordingBatchID;
+            if (static_cast<uint32_t>(m_RecordingBatchID) == 0)
+            {
+                // Rolled into the next "generation", but each generation should start with ID 1
+                ++m_RecordingBatchID;
+            }
         });
 
         bool bRet = !m_CurrentBatch.empty() || !m_PostBatchFunctions.empty();
@@ -1744,15 +1759,11 @@ std::unique_ptr<BatchedContext::Batch> BatchedContext::GetIdleBatch()
     // Assumed m_SubmissionLock is held.
 
     // Find a free batch if possible
-    for (auto iter = m_FreeBatches.begin(); iter != m_FreeBatches.end(); ++iter)
+    if (!m_FreeBatches.empty())
     {
-        if (iter->get()->m_RefCount == 0)
-        {
-            auto batch = std::move(*iter);
-            m_FreeBatches.erase(iter);
-            batch->Reset();
-            return batch;
-        }
+        auto batch = std::move(m_FreeBatches.front());
+        m_FreeBatches.pop_front();
+        return batch;
     }
     return std::unique_ptr<Batch>(new Batch(m_BatchStorageAllocator));
 }
@@ -1775,16 +1786,22 @@ std::unique_ptr<BatchedContext::Batch> BatchedContext::FinishBatch(bool bFlushIm
         std::swap(m_CurrentBatch, NewBatch);
         std::swap(m_PostBatchFunctions, NewPostBatchFunctions);
 
-        m_CurrentRecordingBatch->PrepareToSubmit(std::move(NewBatch), std::move(NewPostBatchFunctions), bFlushImmCtxAfterBatch);
-        pRet = std::move(m_CurrentRecordingBatch);
+        // Synchronize with the worker thread potentially retiring batches
+        {
+            auto SubmissionLock = m_SubmissionLock.TakeLock();
+            pRet = GetIdleBatch();
+        }
+
+        pRet->PrepareToSubmit(std::move(NewBatch), std::move(NewPostBatchFunctions), m_RecordingBatchID, m_CurrentCommandCount, bFlushImmCtxAfterBatch);
         m_CurrentCommandCount = 0;
         m_PendingDestructionMemorySize = 0;
-    }
 
-    // Synchronize with the worker thread potentially retiring batches
-    {
-        auto Lock = m_SubmissionLock.TakeLock();
-        m_CurrentRecordingBatch = GetIdleBatch();
+        ++m_RecordingBatchID;
+        if (static_cast<uint32_t>(m_RecordingBatchID) == 0)
+        {
+            // Rolled into the next "generation", but each generation should start with ID 1
+            ++m_RecordingBatchID;
+        }
     }
 
     return std::move(pRet);
@@ -1795,7 +1812,18 @@ void TRANSLATION_API BatchedContext::SubmitCommandListBatch(Batch* pBatch)
 {
     assert(!IsBatchThread());
     auto pExecutionContext = m_CreationArgs.pParentContext ? m_CreationArgs.pParentContext : this;
-    AddToBatch(CmdExecuteNestedBatch{ pBatch, pExecutionContext });
+
+    auto Lock = m_RecordingLock.TakeLock();
+    AddToBatch(m_CurrentBatch, CmdExecuteNestedBatch{ pBatch, pExecutionContext });
+
+    m_CurrentCommandCount += pBatch->m_NumCommands;
+
+    // Increase the batch ID to the next "generation"
+    // See the comments in SyncWithBatch for more details
+    constexpr uint64_t GenerationIDMask = 0xffffffff00000000ull;
+    m_RecordingBatchID = (m_RecordingBatchID & GenerationIDMask) + (1ull << 32ull) + 1;
+
+    SubmitBatchIfIdle(pBatch->m_NumCommands >= c_CommandKickoffMinThreshold);
 
     // It's guaranteed that a command list both begins and ends with a ClearState command, so we'll
     // clear our own tracked state here.
@@ -1861,12 +1889,13 @@ bool TRANSLATION_API BatchedContext::SubmitBatch(bool bFlushImmCtxAfterBatch)
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-void TRANSLATION_API BatchedContext::SubmitBatchIfIdle()
+void TRANSLATION_API BatchedContext::SubmitBatchIfIdle(bool bSkipFrequencyCheck)
 {
     assert(!IsBatchThread());
     assert(m_CurrentCommandCount > 0);
     if (m_CreationArgs.SubmitBatchesToWorkerThread && // Don't do work on the app thread.
-        m_CurrentCommandCount % c_CommandKickoffMinThreshold == 0 && // Avoid checking for idle all the time, it's not free.
+        (bSkipFrequencyCheck ||
+            m_CurrentCommandCount % c_CommandKickoffMinThreshold == 0) && // Avoid checking for idle all the time, it's not free.
         IsBatchThreadIdle())
     {
         SubmitBatch();
@@ -1908,13 +1937,6 @@ bool BatchedContext::WaitForSingleBatch(DWORD timeout)
         return true;
     }
     return false;
-}
-
-//----------------------------------------------------------------------------------------------------------------------------------
-auto BatchedContext::GetCurrentRecordingBatch() -> Batch::Reference
-{
-    assert(!IsBatchThread());
-    return Batch::Reference(*m_CurrentRecordingBatch.get());
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
@@ -1973,7 +1995,7 @@ void BatchedContext::BatchThread()
             auto Lock = m_SubmissionLock.TakeLock();
 
             UINT FlushRequestedMask = pBatchToProcess->m_FlushRequestedMask;
-            pBatchToProcess->m_bCPUProcessingCompleted = true;
+            m_CompletedBatchID = pBatchToProcess->m_BatchID;
 
             pBatchToProcess->Retire(m_FreePages);
             m_FreeBatches.emplace_back(std::move(m_QueuedBatches.front()));
@@ -2053,7 +2075,6 @@ void FreePageContainer::LockedAdder::AddPage(void* pPage) noexcept
 //----------------------------------------------------------------------------------------------------------------------------------
 void BatchedContext::Batch::Retire(FreePageContainer& FreePages) noexcept
 {
-    SetEvent(m_hCPUCompletionEvent);
     FreePageContainer::LockedAdder Adder(FreePages);
     for (auto& segment : m_BatchCommands.m_segments)
     {
@@ -2064,19 +2085,13 @@ void BatchedContext::Batch::Retire(FreePageContainer& FreePages) noexcept
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-void BatchedContext::Batch::Reset() noexcept
-{
-    ResetEvent(m_hCPUCompletionEvent);
-    m_FlushRequestedMask = 0;
-    m_bCPUProcessingCompleted = false;
-}
-
-//----------------------------------------------------------------------------------------------------------------------------------
-void BatchedContext::Batch::PrepareToSubmit(BatchStorage BatchCommands, std::vector<std::function<void()>> PostBatchFunctions, bool bRequestFlush)
+void BatchedContext::Batch::PrepareToSubmit(BatchStorage BatchCommands, std::vector<std::function<void()>> PostBatchFunctions, uint64_t BatchID, UINT NumCommands, bool bFlushImmCtxAfterBatch)
 {
     m_BatchCommands = std::move(BatchCommands);
     m_PostBatchFunctions = std::move(PostBatchFunctions);
-    m_FlushRequestedMask |= bRequestFlush ? COMMAND_LIST_TYPE_ALL_MASK : 0;
+    m_BatchID = BatchID;
+    m_NumCommands = NumCommands;
+    m_FlushRequestedMask = bFlushImmCtxAfterBatch ? COMMAND_LIST_TYPE_ALL_MASK : 0;
 }
 
 }
