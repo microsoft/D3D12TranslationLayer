@@ -57,12 +57,11 @@ public:
     {
         friend class BatchedContext;
 
-        int m_RefCount = 0;
+        uint64_t m_BatchID;
+
         BatchStorage m_BatchCommands;
         std::vector<std::function<void()>> m_PostBatchFunctions;
-        ThrowingSafeHandle m_hCPUCompletionEvent{ CreateEvent(nullptr, TRUE, FALSE, nullptr) };
-
-        std::atomic<bool> m_bCPUProcessingCompleted = false;
+        UINT m_NumCommands;
 
         // Used to check GPU completion. Guarded by submission lock.
         UINT m_FlushRequestedMask = 0;
@@ -72,35 +71,7 @@ public:
         {
         }
         void Retire(FreePageContainer& FreePages) noexcept;
-        void Reset() noexcept;
-        void PrepareToSubmit(BatchStorage BatchCommands, std::vector<std::function<void()>> PostBatchFunctions, bool bRequestFlush);
-
-    public:
-        class Reference
-        {
-            Batch* m_Batch = nullptr;
-            void Release() noexcept { if (m_Batch) m_Batch->m_RefCount--; }
-        public:
-            Reference() noexcept { }
-            Reference(Batch& b) noexcept : m_Batch(&b) { b.m_RefCount++; }
-            Reference(Reference const& r) noexcept : m_Batch(r.m_Batch) { m_Batch->m_RefCount++; }
-            Reference(Reference&& r) noexcept : m_Batch(r.m_Batch) { r.m_Batch = nullptr; }
-            Reference& operator=(Reference const& r) noexcept { Release(); m_Batch = r.m_Batch; m_Batch->m_RefCount++; return *this; }
-            Reference& operator=(Reference&& r) noexcept { Release(); m_Batch = r.m_Batch; r.m_Batch = nullptr; return *this; }
-            ~Reference() noexcept { Release(); }
-
-            // This is the interface for the application thread.
-            // Holding a reference on a batch ensures that it won't be re-used.
-            operator bool() const noexcept { return m_Batch != nullptr; }
-            bool IsCPUDone() const noexcept { return m_Batch->m_bCPUProcessingCompleted; }
-            void WaitForCPU() const noexcept { WaitForSingleObject(m_Batch->m_hCPUCompletionEvent, INFINITE); }
-
-            bool operator==(Reference const& o) const noexcept { return m_Batch == o.m_Batch; }
-
-            // Requires holding the submission lock.
-            bool BatchRequestsFlush() const noexcept { return m_Batch->m_FlushRequestedMask != 0; }
-            void RequestFlush(UINT FlushMask) noexcept { m_Batch->m_FlushRequestedMask |= FlushMask; }
-        };
+        void PrepareToSubmit(BatchStorage BatchCommands, std::vector<std::function<void()>> PostBatchFunctions, uint64_t BatchID, UINT NumCommands, bool bFlushImmCtxAfterBatch);
     };
 
     static const void* AlignPtr(const void* pPtr) noexcept
@@ -554,8 +525,7 @@ public:
 
     bool TRANSLATION_API ProcessBatch();
     bool TRANSLATION_API SubmitBatch(bool bFlushImmCtxAfterBatch = false);
-    Batch::Reference TRANSLATION_API GetCurrentRecordingBatch();
-    void TRANSLATION_API SubmitBatchIfIdle();
+    void TRANSLATION_API SubmitBatchIfIdle(bool bSkipFrequencyCheck = false);
 
     std::unique_ptr<Batch> TRANSLATION_API FinishBatch(bool bFlushImmCtxAfterBatch = false);
     void TRANSLATION_API SubmitCommandListBatch(Batch*);
@@ -770,7 +740,7 @@ private:
     void BatchThread();
 
     template <typename TFunc>
-    bool SyncWithBatch(Batch::Reference& BatchReference, bool DoNotFlush, TFunc&& GetImmObjectFenceValues);
+    bool SyncWithBatch(uint64_t& BatchID, bool DoNotFlush, TFunc&& GetImmObjectFenceValues);
 
     std::unique_ptr<Batch> GetIdleBatch();
 
@@ -785,6 +755,8 @@ private: // Referenced by recording and batch threads
 
     // Note: Must be declared before BatchStorageAllocator
     FreePageContainer m_FreePages{ m_CreationArgs.SubmitBatchesToWorkerThread };
+
+    uint64_t m_CompletedBatchID = 0;
 
     const Callbacks m_Callbacks;
     std::atomic<bool> m_bFlushPendingCallback;
@@ -808,7 +780,7 @@ private: // Referenced by recording thread
     OptLock<std::recursive_mutex> m_RecordingLock{ m_CreationArgs.CreatesAndDestroysAreMultithreaded };
     UINT m_CurrentCommandCount = 0;
     UINT m_NumOutstandingBatches = 0;
-    std::unique_ptr<Batch> m_CurrentRecordingBatch;
+    uint64_t m_RecordingBatchID = 1;
 
     BatchStorage m_CurrentBatch{ m_BatchStorageAllocator };
 
