@@ -1945,13 +1945,12 @@ void BatchedContext::BatchThread()
         WaitForSingleObject(m_BatchSubmittedSemaphore, INFINITE);
 
         // Figure out what we're supposed to be working on
-        std::unique_ptr<Batch> pBatchToProcess;
+        Batch* pBatchToProcess = nullptr;
         {
             auto Lock = m_SubmissionLock.TakeLock();
             if (!m_QueuedBatches.empty())
             {
-                pBatchToProcess = std::move(m_QueuedBatches.front());
-                m_QueuedBatches.pop_front();
+                pBatchToProcess = m_QueuedBatches.front().get();
             }
         }
 
@@ -1962,7 +1961,7 @@ void BatchedContext::BatchThread()
         }
 
         // Do the work
-        ProcessBatchImpl(pBatchToProcess.get());
+        ProcessBatchImpl(pBatchToProcess);
 
         // Retire the batch
         for (auto& fn : pBatchToProcess->m_PostBatchFunctions)
@@ -1977,7 +1976,8 @@ void BatchedContext::BatchThread()
             pBatchToProcess->m_bCPUProcessingCompleted = true;
 
             pBatchToProcess->Retire(m_FreePages);
-            m_FreeBatches.emplace_back(std::move(pBatchToProcess));
+            m_FreeBatches.emplace_back(std::move(m_QueuedBatches.front()));
+            m_QueuedBatches.pop_front();
 
             m_ImmCtx.Flush(FlushRequestedMask);
         }
