@@ -6,7 +6,6 @@
 #define USE_PIX_ON_ALL_ARCHITECTURES
 #endif
 
-#define USE_PIX
 #include <pix3.h>
 
 //Library Headers

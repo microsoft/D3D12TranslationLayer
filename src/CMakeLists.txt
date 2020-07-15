@@ -97,6 +97,10 @@ target_link_libraries(d3d12translationlayer WinPixEventRuntime)
 target_compile_definitions(d3d12translationlayer PRIVATE $<$<CONFIG:DEBUG>:DBG>)
 target_compile_definitions(d3d12translationlayer PUBLIC $<$<CONFIG:DEBUG>:TRANSLATION_LAYER_DBG=1>)
 
+if (USE_PIX)
+	target_compile_definitions(d3d12translationlayer PUBLIC USE_PIX)
+endif()
+
 if(MSVC)
   target_compile_options(d3d12translationlayer PUBLIC /W4 /WX /wd4238 /wd4324)
   target_link_options(d3d12translationlayer INTERFACE "/ignore:4286")
