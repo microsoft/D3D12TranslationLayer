@@ -403,13 +403,13 @@ void ImmediateContext::InitializeVideo(ID3D12VideoDevice **ppVideoDevice)
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-void ImmediateContext::AddResourceToDeferredDeletionQueue(ID3D12Object* pUnderlying, std::unique_ptr<ResidencyManagedObjectWrapper> &&pResidencyHandle, const UINT64 lastCommandListIDs[(UINT)COMMAND_LIST_TYPE::MAX_VALID], bool completionRequired)
+void ImmediateContext::AddResourceToDeferredDeletionQueue(ID3D12Object* pUnderlying, std::unique_ptr<ResidencyManagedObjectWrapper> &&pResidencyHandle, const UINT64 lastCommandListIDs[(UINT)COMMAND_LIST_TYPE::MAX_VALID], bool completionRequired, std::vector<DeferredWait> deferredWaits)
 {
     // Note: Due to the below routines being called after deferred deletion queue destruction,
     // all callers of the generic AddObjectToQueue should ensure that the object really needs to be in the queue.
-    if (!RetiredD3D12Object::ReadyToDestroy(this, completionRequired, lastCommandListIDs))
+    if (!RetiredD3D12Object::ReadyToDestroy(this, completionRequired, lastCommandListIDs, deferredWaits))
     {
-        m_DeferredDeletionQueueManager.GetLocked()->AddObjectToQueue(pUnderlying, std::move(pResidencyHandle), lastCommandListIDs, completionRequired);
+        m_DeferredDeletionQueueManager.GetLocked()->AddObjectToQueue(pUnderlying, std::move(pResidencyHandle), lastCommandListIDs, completionRequired, std::move(deferredWaits));
     }
 }
 
@@ -5238,20 +5238,43 @@ void TRANSLATION_API ImmediateContext::CreateSharedNTHandle(_In_ Resource *pReso
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-bool RetiredObject::ReadyToDestroy(ImmediateContext* pContext, bool completionRequired, UINT64 lastCommandListID, COMMAND_LIST_TYPE commandListType)
+bool RetiredObject::DeferredWaitsSatisfied(const std::vector<DeferredWait>& deferredWaits)
 {
-    if (completionRequired)
+    for (auto& deferredWait : deferredWaits)
     {
-        return lastCommandListID <= pContext->GetCompletedFenceValue(commandListType);
+        if (deferredWait.value > deferredWait.fence->GetCompletedValue())
+        {
+            return false;
+        }
     }
-    else
-    {
-        return lastCommandListID < pContext->GetCommandListID(commandListType);
-    }
+
+    return true;
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-bool RetiredObject::ReadyToDestroy(ImmediateContext* pContext, bool completionRequired, const UINT64 lastCommandListIDs[(UINT)COMMAND_LIST_TYPE::MAX_VALID])
+bool RetiredObject::ReadyToDestroy(ImmediateContext* pContext, bool completionRequired, UINT64 lastCommandListID, COMMAND_LIST_TYPE commandListType, const std::vector<DeferredWait>& deferredWaits)
+{
+    bool readyToDestroy = true;
+
+    if (completionRequired)
+    {
+        readyToDestroy = lastCommandListID <= pContext->GetCompletedFenceValue(commandListType);
+    }
+    else
+    {
+        readyToDestroy = lastCommandListID < pContext->GetCommandListID(commandListType);
+    }
+
+    if (readyToDestroy)
+    {
+        readyToDestroy = DeferredWaitsSatisfied(deferredWaits);
+    }
+
+    return readyToDestroy;
+}
+
+//----------------------------------------------------------------------------------------------------------------------------------
+bool RetiredObject::ReadyToDestroy(ImmediateContext* pContext, bool completionRequired, const UINT64 lastCommandListIDs[(UINT)COMMAND_LIST_TYPE::MAX_VALID], const std::vector<DeferredWait>& deferredWaits)
 {
     bool readyToDestroy = true;
 
@@ -5274,6 +5297,11 @@ bool RetiredObject::ReadyToDestroy(ImmediateContext* pContext, bool completionRe
                 readyToDestroy = lastCommandListIDs[i] < pContext->GetCommandListID((COMMAND_LIST_TYPE)i);
             }
         }
+    }
+
+    if (readyToDestroy)
+    {
+        readyToDestroy = DeferredWaitsSatisfied(deferredWaits);
     }
 
     return readyToDestroy;

@@ -591,14 +591,16 @@ class ImmediateContext;
 struct RetiredObject
 {
     RetiredObject() {}
-    RetiredObject(COMMAND_LIST_TYPE CommandListType, UINT64 lastCommandListID, bool completionRequired) :
-        m_completionRequired(completionRequired) 
+    RetiredObject(COMMAND_LIST_TYPE CommandListType, UINT64 lastCommandListID, bool completionRequired, std::vector<DeferredWait> deferredWaits = std::vector<DeferredWait>()) :
+        m_completionRequired(completionRequired),
+        m_deferredWaits(std::move(deferredWaits))
     {
         m_lastCommandListIDs[(UINT)CommandListType] = lastCommandListID;
     }
 
-    RetiredObject(const UINT64 lastCommandListIDs[(UINT)COMMAND_LIST_TYPE::MAX_VALID], bool completionRequired) :
-        m_completionRequired(completionRequired)
+    RetiredObject(const UINT64 lastCommandListIDs[(UINT)COMMAND_LIST_TYPE::MAX_VALID], bool completionRequired, std::vector<DeferredWait> deferredWaits = std::vector<DeferredWait>()) :
+        m_completionRequired(completionRequired),
+        m_deferredWaits(std::move(deferredWaits))
     {
         for (UINT i = 0; i < (UINT)COMMAND_LIST_TYPE::MAX_VALID; i++)
         {
@@ -606,24 +608,26 @@ struct RetiredObject
         }
     }
 
-    static bool ReadyToDestroy(ImmediateContext* pContext, bool completionRequired, UINT64 lastCommandListID, COMMAND_LIST_TYPE CommandListType);
-    static bool ReadyToDestroy(ImmediateContext* pContext, bool completionRequired, const UINT64 lastCommandListIDs[(UINT)COMMAND_LIST_TYPE::MAX_VALID]);
-    bool ReadyToDestroy(ImmediateContext* pContext) { return ReadyToDestroy(pContext, m_completionRequired, m_lastCommandListIDs); }
+    static bool ReadyToDestroy(ImmediateContext* pContext, bool completionRequired, UINT64 lastCommandListID, COMMAND_LIST_TYPE CommandListType, const std::vector<DeferredWait>& deferredWaits = std::vector<DeferredWait>());
+    static bool ReadyToDestroy(ImmediateContext* pContext, bool completionRequired, const UINT64 lastCommandListIDs[(UINT)COMMAND_LIST_TYPE::MAX_VALID], const std::vector<DeferredWait>& deferredWaits = std::vector<DeferredWait>());
+    static bool DeferredWaitsSatisfied(const std::vector<DeferredWait>& deferredWaits);
+    bool ReadyToDestroy(ImmediateContext* pContext) { return ReadyToDestroy(pContext, m_completionRequired, m_lastCommandListIDs, m_deferredWaits); }
 
     UINT64 m_lastCommandListIDs[(UINT)COMMAND_LIST_TYPE::MAX_VALID] = {};
     bool m_completionRequired = false;
+    std::vector<DeferredWait> m_deferredWaits;
 };
 
 struct RetiredD3D12Object : public RetiredObject
 {
     RetiredD3D12Object() {}
-    RetiredD3D12Object(ID3D12Object* pUnderlying, _In_opt_ std::unique_ptr<ResidencyManagedObjectWrapper> &&pResidencyHandle, COMMAND_LIST_TYPE CommandListType, UINT64 lastCommandListID, bool completionRequired) :
-        RetiredObject(CommandListType, lastCommandListID, completionRequired)
+    RetiredD3D12Object(ID3D12Object* pUnderlying, _In_opt_ std::unique_ptr<ResidencyManagedObjectWrapper> &&pResidencyHandle, COMMAND_LIST_TYPE CommandListType, UINT64 lastCommandListID, bool completionRequired, std::vector<DeferredWait> deferredWaits) :
+        RetiredObject(CommandListType, lastCommandListID, completionRequired, std::move(deferredWaits))
         , m_pUnderlying(pUnderlying)
         , m_pResidencyHandle(std::move(pResidencyHandle)) {}
 
-    RetiredD3D12Object(ID3D12Object* pUnderlying, _In_opt_ std::unique_ptr<ResidencyManagedObjectWrapper> &&pResidencyHandle, const UINT64 lastCommandListIDs[(UINT)COMMAND_LIST_TYPE::MAX_VALID], bool completionRequired) :
-        RetiredObject(lastCommandListIDs, completionRequired)
+    RetiredD3D12Object(ID3D12Object* pUnderlying, _In_opt_ std::unique_ptr<ResidencyManagedObjectWrapper> &&pResidencyHandle, const UINT64 lastCommandListIDs[(UINT)COMMAND_LIST_TYPE::MAX_VALID], bool completionRequired, std::vector<DeferredWait> deferredWaits) :
+        RetiredObject(lastCommandListIDs, completionRequired, std::move(deferredWaits))
         , m_pUnderlying(pUnderlying)
         , m_pResidencyHandle(std::move(pResidencyHandle)) {}
 
@@ -676,14 +680,14 @@ public:
     bool GetFenceValuesForObjectDeletion(UINT64(&FenceValues)[(UINT)COMMAND_LIST_TYPE::MAX_VALID]);
     bool GetFenceValuesForSuballocationDeletion(UINT64(&FenceValues)[(UINT)COMMAND_LIST_TYPE::MAX_VALID]);
 
-    void AddObjectToQueue(ID3D12Object* pUnderlying, std::unique_ptr<ResidencyManagedObjectWrapper> &&pResidencyHandle, COMMAND_LIST_TYPE CommandListType, UINT64 lastCommandListID, bool completionRequired)
+    void AddObjectToQueue(ID3D12Object* pUnderlying, std::unique_ptr<ResidencyManagedObjectWrapper> &&pResidencyHandle, COMMAND_LIST_TYPE CommandListType, UINT64 lastCommandListID, bool completionRequired, std::vector<DeferredWait> deferredWaits = std::vector<DeferredWait>())
     {
-        m_DeferredObjectDeletionQueue.push(RetiredD3D12Object(pUnderlying, std::move(pResidencyHandle), CommandListType, lastCommandListID, completionRequired));
+        m_DeferredObjectDeletionQueue.push(RetiredD3D12Object(pUnderlying, std::move(pResidencyHandle), CommandListType, lastCommandListID, completionRequired, std::move(deferredWaits)));
     }
 
-    void AddObjectToQueue(ID3D12Object* pUnderlying, std::unique_ptr<ResidencyManagedObjectWrapper> &&pResidencyHandle, const UINT64 lastCommandListIDs[(UINT)COMMAND_LIST_TYPE::MAX_VALID], bool completionRequired)
+    void AddObjectToQueue(ID3D12Object* pUnderlying, std::unique_ptr<ResidencyManagedObjectWrapper> &&pResidencyHandle, const UINT64 lastCommandListIDs[(UINT)COMMAND_LIST_TYPE::MAX_VALID], bool completionRequired, std::vector<DeferredWait> deferredWaits = std::vector<DeferredWait>())
     {
-        m_DeferredObjectDeletionQueue.push(RetiredD3D12Object(pUnderlying, std::move(pResidencyHandle), lastCommandListIDs, completionRequired));
+        m_DeferredObjectDeletionQueue.push(RetiredD3D12Object(pUnderlying, std::move(pResidencyHandle), lastCommandListIDs, completionRequired, std::move(deferredWaits)));
     }
 
     void AddSuballocationToQueue(HeapSuballocationBlock &suballocation, ConditionalHeapAllocator &parentAllocator, COMMAND_LIST_TYPE CommandListType, UINT64 lastCommandListID)
@@ -889,7 +893,7 @@ public:
     void InitializeVideo(ID3D12VideoDevice **ppVideoDevice);
 
     void AddObjectToResidencySet(Resource *pResource, COMMAND_LIST_TYPE commandListType);
-    void AddResourceToDeferredDeletionQueue(ID3D12Object* pUnderlying, std::unique_ptr<ResidencyManagedObjectWrapper> &&pResidencyHandle, const UINT64 lastCommandListIDs[(UINT)COMMAND_LIST_TYPE::MAX_VALID], bool completionRequired);
+    void AddResourceToDeferredDeletionQueue(ID3D12Object* pUnderlying, std::unique_ptr<ResidencyManagedObjectWrapper> &&pResidencyHandle, const UINT64 lastCommandListIDs[(UINT)COMMAND_LIST_TYPE::MAX_VALID], bool completionRequired, std::vector<DeferredWait> deferredWaits);
     void AddObjectToDeferredDeletionQueue(ID3D12Object* pUnderlying, COMMAND_LIST_TYPE commandListType, UINT64 lastCommandListID, bool completionRequired);
     void AddObjectToDeferredDeletionQueue(ID3D12Object* pUnderlying, const UINT64 lastCommandListIDs[(UINT)COMMAND_LIST_TYPE::MAX_VALID], bool completionRequired);
 

@@ -357,7 +357,8 @@ namespace D3D12TranslationLayer
                     m_pParent->AddResourceToDeferredDeletionQueue(GetIdentity()->GetOwnedResource(),
                         std::move(m_Identity->m_pResidencyHandle),
                         m_LastUsedCommandListID,
-                        m_bWaitForCompletionRequired);
+                        m_bWaitForCompletionRequired,
+                        std::move(m_DeferredWaits));
                 }
                 else
                 {
