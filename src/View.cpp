@@ -79,10 +79,6 @@ namespace D3D12TranslationLayer
             // No more failures after this point
             m_pCounterResource = std::move(pCounterResource);
 
-            // Force the descriptor to be refreshed now that the counter has been allocated
-            hr = RefreshUnderlying(false);
-            assert(S_OK == hr);
-
             // Transition the counter to the UAV state
             D3D12_RESOURCE_BARRIER BarrierDesc;
             ZeroMemory(&BarrierDesc, sizeof(BarrierDesc));

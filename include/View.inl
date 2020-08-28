@@ -109,9 +109,9 @@ namespace D3D12TranslationLayer
 
     //----------------------------------------------------------------------------------------------------------------------------------
     template<typename TIface>
-    HRESULT View<TIface>::RefreshUnderlying(bool bInit) noexcept
+    HRESULT View<TIface>::RefreshUnderlying() noexcept
     {
-        if (bInit || m_ViewUniqueness != m_pResource->GetUniqueness<TIface>())
+        if (m_ViewUniqueness != m_pResource->GetUniqueness<TIface>())
         {
             UpdateMinLOD(m_pResource->GetMinLOD());
 
@@ -130,17 +130,15 @@ namespace D3D12TranslationLayer
     //----------------------------------------------------------------------------------------------------------------------------------
     // Specialized because ID3D12Device::CreateUnorderedAccessView takes 2 resources as input
     template<>
-    inline HRESULT View<UnorderedAccessViewType>::RefreshUnderlying(bool bInit) noexcept
+    inline HRESULT View<UnorderedAccessViewType>::RefreshUnderlying() noexcept
     {
         // UAVs are always refreshed (to ensure that the proper counter resource is passed in)
         UAV* p11on12UAV = static_cast<UAV*>(this);
         const TDesc12 &Desc = GetDesc12();
 
-        // When bInit is true, then p11on12UAV->m_pCounterResource has not yet been initialized
-        // UAV creation code will cause RefreshUnderlying to be called again
         m_pParent->m_pDevice12.get()->CreateUnorderedAccessView(
             m_pResource->GetUnderlyingResource(),
-            bInit ? nullptr : p11on12UAV->m_pCounterResource.get(),
+            p11on12UAV->m_pCounterResource.get(),
             &Desc,
             m_Descriptor
             );
@@ -152,21 +150,21 @@ namespace D3D12TranslationLayer
     //----------------------------------------------------------------------------------------------------------------------------------
     // Specialized because no underlying D3D12 video views
     template<>
-    inline HRESULT View<VideoDecoderOutputViewType>::RefreshUnderlying(bool /*bInit*/) noexcept
+    inline HRESULT View<VideoDecoderOutputViewType>::RefreshUnderlying() noexcept
     {
         m_ViewUniqueness = m_pResource->GetUniqueness<VideoDecoderOutputViewType>();
         return S_OK;
     }
 
     template<>
-    inline HRESULT View<VideoProcessorInputViewType>::RefreshUnderlying(bool /*bInit*/) noexcept
+    inline HRESULT View<VideoProcessorInputViewType>::RefreshUnderlying() noexcept
     {
         m_ViewUniqueness = m_pResource->GetUniqueness<VideoProcessorInputViewType>();
         return S_OK;
     }
 
     template<>
-    inline HRESULT View<VideoProcessorOutputViewType>::RefreshUnderlying(bool /*bInit*/) noexcept
+    inline HRESULT View<VideoProcessorOutputViewType>::RefreshUnderlying() noexcept
     {
         m_ViewUniqueness = m_pResource->GetUniqueness<VideoProcessorOutputViewType>();
         return S_OK;
@@ -176,7 +174,7 @@ namespace D3D12TranslationLayer
     inline ViewBase::ViewBase(ImmediateContext* pDevice, Resource* pResource, CViewSubresourceSubset const& Subresources) noexcept
         : DeviceChild(pDevice)
         , m_pResource(pResource)
-        , m_ViewUniqueness(0)
+        , m_ViewUniqueness(UINT_MAX)
         , m_subresources(Subresources)
     {
     }
@@ -200,7 +198,6 @@ namespace D3D12TranslationLayer
         }
 
         m_Descriptor = pDevice->GetViewAllocator<TIface>().AllocateHeapSlot(&m_DescriptorHeapIndex); // throw( _com_error )
-        ThrowFailure(RefreshUnderlying(true)); // throw( _com_error )
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
@@ -223,7 +220,6 @@ namespace D3D12TranslationLayer
         m_Desc(Desc),
         m_BindRefs(0)
     {
-        ThrowFailure(RefreshUnderlying(true)); // throw( _com_error )
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
@@ -244,7 +240,6 @@ namespace D3D12TranslationLayer
         m_Desc(Desc),
         m_BindRefs(0)
     {
-        ThrowFailure(RefreshUnderlying(true)); // throw( _com_error )
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
@@ -265,7 +260,6 @@ namespace D3D12TranslationLayer
         m_Desc(Desc),
         m_BindRefs(0)
     {
-        ThrowFailure(RefreshUnderlying(true)); // throw( _com_error )
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------

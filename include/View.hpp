@@ -123,7 +123,7 @@ namespace D3D12TranslationLayer
         const TDesc12& GetDesc12() noexcept;
 
         bool IsUpToDate() const noexcept { return m_pResource->GetUniqueness<TIface>() == m_ViewUniqueness; }
-        HRESULT RefreshUnderlying(bool bInit = false) noexcept;
+        HRESULT RefreshUnderlying() noexcept;
 
         void ViewBound(UINT Slot = 0, EShaderStage = e_PS) noexcept;
         void ViewUnbound(UINT Slot = 0, EShaderStage = e_PS) noexcept;
