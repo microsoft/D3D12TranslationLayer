@@ -691,7 +691,7 @@ namespace D3D12TranslationLayer
                 D3D12_GPU_DESCRIPTOR_HANDLE SRVBaseGPU = m_pParent->m_ViewHeap.GPUHandle(SRVBaseSlot);
                 SRVBaseSlot++;
 
-                m_pParent->m_pDevice12->CopyDescriptorsSimple(1, SRVBaseCPU, inputSRV.m_Descriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+                m_pParent->m_pDevice12->CopyDescriptorsSimple(1, SRVBaseCPU, inputSRV.GetRefreshedDescriptorHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
                 pCommandList->SetPipelineState(m_spDeinterlacePSOs[ViewFormat]->GetForUse(COMMAND_LIST_TYPE::GRAPHICS));
 
@@ -700,7 +700,7 @@ namespace D3D12TranslationLayer
                 pCommandList->RSSetViewports(1, &Viewport);
                 pCommandList->RSSetScissorRects(1, &Scissor);
 
-                pCommandList->OMSetRenderTargets(1, &outputRTV.m_Descriptor, TRUE, nullptr);
+                pCommandList->OMSetRenderTargets(1, &outputRTV.GetRefreshedDescriptorHandle(), TRUE, nullptr);
                 pCommandList->SetGraphicsRootDescriptorTable(1, SRVBaseGPU);
 
                 pCommandList->DrawInstanced(4, 1, 0, 0);

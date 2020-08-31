@@ -330,7 +330,7 @@ namespace D3D12TranslationLayer
         D3D12_GPU_DESCRIPTOR_HANDLE SRVBaseGPU = m_pParent->m_ViewHeap.GPUHandle(SRVBaseSlot);
         pCommandList->SetGraphicsRootDescriptorTable(0, SRVBaseGPU);
 
-        pCommandList->OMSetRenderTargets(1, &pRTV->m_Descriptor, TRUE, nullptr);
+        pCommandList->OMSetRenderTargets(1, &pRTV->GetRefreshedDescriptorHandle(), TRUE, nullptr);
 
         // Constant buffers: srcRect, src dimensions
         {

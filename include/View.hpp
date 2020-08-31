@@ -92,9 +92,12 @@ namespace D3D12TranslationLayer
 
     public: // Members
         Resource* const m_pResource;
+
+    protected:
         D3D12_CPU_DESCRIPTOR_HANDLE m_Descriptor;
         UINT m_DescriptorHeapIndex;
 
+    public:
         CViewSubresourceSubset m_subresources;
         UINT m_ViewUniqueness;
     };
@@ -124,6 +127,16 @@ namespace D3D12TranslationLayer
 
         bool IsUpToDate() const noexcept { return m_pResource->GetUniqueness<TIface>() == m_ViewUniqueness; }
         HRESULT RefreshUnderlying() noexcept;
+        D3D12_CPU_DESCRIPTOR_HANDLE GetRefreshedDescriptorHandle()
+        {
+            HRESULT hr = RefreshUnderlying();
+            if (FAILED(hr))
+            {
+                assert(hr != E_INVALIDARG);
+                ThrowFailure(hr);
+            }
+            return m_Descriptor;
+        }
 
         void ViewBound(UINT Slot = 0, EShaderStage = e_PS) noexcept;
         void ViewUnbound(UINT Slot = 0, EShaderStage = e_PS) noexcept;
