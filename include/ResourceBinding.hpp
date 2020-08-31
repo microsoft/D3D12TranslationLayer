@@ -264,8 +264,7 @@ namespace D3D12TranslationLayer
             {
                 if (this->m_Bound[i])
                 {
-                    this->m_Bound[i]->RefreshUnderlying();
-                    pDescriptors[i] = this->m_Bound[i]->m_Descriptor;
+                    pDescriptors[i] = this->m_Bound[i]->GetRefreshedDescriptorHandle();
                 }
                 else
                 {

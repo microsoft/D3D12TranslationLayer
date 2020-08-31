@@ -639,17 +639,6 @@ RootSignature* ImmediateContext::CreateOrRetrieveRootSignature(RootSignatureDesc
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-template<typename TIface> D3D12_CPU_DESCRIPTOR_HANDLE GetUnderlyingView(View<TIface>* pView)
-{
-    HRESULT hr = pView->RefreshUnderlying();
-    if (FAILED(hr))
-    {
-        assert(hr != E_INVALIDARG);
-        ThrowFailure(hr);
-    }
-    return pView->m_Descriptor;
-}
-
 static const D3D12_RECT g_cMaxScissorRect = { D3D12_VIEWPORT_BOUNDS_MIN, D3D12_VIEWPORT_BOUNDS_MIN, D3D12_VIEWPORT_BOUNDS_MAX, D3D12_VIEWPORT_BOUNDS_MAX };
 static const D3D12_RECT g_cMaxScissors[D3D12_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE] =
 {
@@ -765,16 +754,14 @@ void ImmediateContext::RefreshNonHeapBindings(UINT64 DirtyBits) noexcept
             RTVDescriptors[i] = m_NullRTV;
             if (pRTV)
             {
-                pRTV->RefreshUnderlying();
-                RTVDescriptors[i] = pRTV->m_Descriptor;
+                RTVDescriptors[i] = pRTV->GetRefreshedDescriptorHandle();
             }
         }
         m_CurrentState.m_DSVs.ResetDirty();
         auto pDSV = m_CurrentState.m_DSVs.GetBound()[0];
         if (pDSV)
         {
-            pDSV->RefreshUnderlying();
-            pDSVDescriptor = &pDSV->m_Descriptor;
+            pDSVDescriptor = &pDSV->GetRefreshedDescriptorHandle();
         }
 
         GetGraphicsCommandList()->OMSetRenderTargets(numRTVs, RTVDescriptors, false, pDSVDescriptor);
@@ -1368,7 +1355,7 @@ void TRANSLATION_API ImmediateContext::ClearRenderTargetView(RTV *pRTV, CONST FL
     TransitionResourceForView(pRTV, D3D12_RESOURCE_STATE_RENDER_TARGET);
     m_ResourceStateManager.ApplyAllResourceTransitions();
 
-    auto Descriptor = GetUnderlyingView(pRTV);
+    auto Descriptor = pRTV->GetRefreshedDescriptorHandle();
     GetGraphicsCommandList()->ClearRenderTargetView(Descriptor, color, NumRects, pRects);
     PostRender(COMMAND_LIST_TYPE::GRAPHICS);
 }
@@ -1407,7 +1394,7 @@ void TRANSLATION_API ImmediateContext::ClearDepthStencilView(DSV *pDSV, UINT Fla
 
     static_assert(D3D11_CLEAR_DEPTH == D3D12_CLEAR_FLAG_DEPTH, "Casting flags");
     static_assert(D3D11_CLEAR_STENCIL == D3D12_CLEAR_FLAG_STENCIL, "Casting flags");
-    auto Descriptor = GetUnderlyingView(pDSV);
+    auto Descriptor = pDSV->GetRefreshedDescriptorHandle();
     GetGraphicsCommandList()->ClearDepthStencilView(Descriptor, static_cast<D3D12_CLEAR_FLAGS>(Flags), Depth, Stencil, NumRects, pRects);
     PostRender(COMMAND_LIST_TYPE::GRAPHICS);
 }
@@ -1421,7 +1408,7 @@ void TRANSLATION_API ImmediateContext::ClearUnorderedAccessViewUint(UAV *pUAV, C
     TransitionResourceForView(pUAV, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     m_ResourceStateManager.ApplyAllResourceTransitions();
 
-    auto Descriptor = GetUnderlyingView(pUAV);
+    auto Descriptor = pUAV->GetRefreshedDescriptorHandle();
     UINT ViewHeapSlot = ReserveSlots(m_ViewHeap, 1); // throw( _com_error )
     D3D12_GPU_DESCRIPTOR_HANDLE GPUDescriptor = m_ViewHeap.GPUHandle(ViewHeapSlot);
     D3D12_CPU_DESCRIPTOR_HANDLE CPUDescriptor = m_ViewHeap.CPUHandle(ViewHeapSlot);
@@ -1443,7 +1430,7 @@ void TRANSLATION_API ImmediateContext::ClearUnorderedAccessViewFloat(UAV *pUAV, 
     TransitionResourceForView(pUAV, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     m_ResourceStateManager.ApplyAllResourceTransitions();
 
-    auto Descriptor = GetUnderlyingView(pUAV);
+    auto Descriptor = pUAV->GetRefreshedDescriptorHandle();
 
     UINT ViewHeapSlot = ReserveSlots(m_ViewHeap, 1); // throw( _com_error )
     D3D12_GPU_DESCRIPTOR_HANDLE GPUDescriptor = m_ViewHeap.GPUHandle(ViewHeapSlot);
@@ -2279,7 +2266,7 @@ void TRANSLATION_API ImmediateContext::GenMips( SRV *pSRV, D3D12_FILTER_TYPE Fil
     }
     else
     {
-        m_pDevice12->CopyDescriptorsSimple( 1, CPUDescriptor, pSRV->m_Descriptor, m_ViewHeap.m_Desc.Type );
+        m_pDevice12->CopyDescriptorsSimple( 1, CPUDescriptor, pSRV->GetRefreshedDescriptorHandle(), m_ViewHeap.m_Desc.Type );
     }
 
     GetGraphicsCommandList()->SetGraphicsRootDescriptorTable(GenerateMipsRootSignatureSlots::eSRV, GPUDescriptor);
