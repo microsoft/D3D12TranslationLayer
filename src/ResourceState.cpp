@@ -1060,6 +1060,7 @@ namespace D3D12TranslationLayer
         PostSubmitUpdateState([=](PostApplyUpdate const& update, COMMAND_LIST_TYPE CmdListType, UINT64 FenceValue)
         {
             static_cast<Resource&>(update.AffectedResource).UsedInCommandList(CmdListType, FenceValue);
+            m_ImmCtx.GetCommandListManager(CmdListType)->SetNeedSubmitFence();
         }, CurrentFenceValues, NewCommandListID);
     }
 };
