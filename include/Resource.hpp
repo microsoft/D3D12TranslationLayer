@@ -896,5 +896,13 @@ namespace D3D12TranslationLayer
         }
 
         bool m_isValid = false;
+
+        // Fence used to ensure residency operations queued as part of UnwrapUnderlyingResource
+        // operations are completed if the caller returns a resource without scheduling any work.
+        DeferredWait m_UnwrapUnderlyingResidencyDeferredWait;
+
+public:
+        HRESULT AddFenceForUnwrapResidency(ID3D12CommandQueue* pQueue);
+
     };
 };

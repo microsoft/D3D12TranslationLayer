@@ -1056,4 +1056,28 @@ namespace D3D12TranslationLayer
         UINT DynamicTextureIndex = GetDynamicTextureIndex(subresource);
         m_spCurrentCpuHeaps[DynamicTextureIndex] = UploadHeap;
     }
+
+    //----------------------------------------------------------------------------------------------------------------------------------
+    HRESULT Resource::AddFenceForUnwrapResidency(ID3D12CommandQueue* pQueue)
+    {
+        try
+        {
+            if (m_UnwrapUnderlyingResidencyDeferredWait.fence.get() == nullptr)
+            {
+                m_UnwrapUnderlyingResidencyDeferredWait.fence =
+                    std::make_shared<D3D12TranslationLayer::Fence>(m_pParent, FENCE_FLAG_NONE, 0); // throw (bad_alloc)
+                m_UnwrapUnderlyingResidencyDeferredWait.value = 0;
+            }
+
+            ++m_UnwrapUnderlyingResidencyDeferredWait.value;
+            pQueue->Signal(m_UnwrapUnderlyingResidencyDeferredWait.fence->Get(), m_UnwrapUnderlyingResidencyDeferredWait.value);
+            m_DeferredWaits.push_back(m_UnwrapUnderlyingResidencyDeferredWait);
+        }
+        catch(std::bad_alloc&)
+        {
+            return E_OUTOFMEMORY;
+        }
+
+        return S_OK;
+    }
 };
