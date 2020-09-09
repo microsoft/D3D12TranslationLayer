@@ -151,7 +151,7 @@ namespace D3DX12Residency
 			m_pinWaits.reserve(m_pinWaits.size() + NumSync); // throw( bad_alloc);
 			for (UINT i(0); i < NumSync; ++i)
 			{
-				m_pinWaits.push_back(PinWait( ppFences[i], pSignalValues[i] ));
+				m_pinWaits.emplace_back(ppFences[i], pSignalValues[i]);
 			}
 		}
 
@@ -160,7 +160,8 @@ namespace D3DX12Residency
 			m_pinWaits.erase(std::remove_if(m_pinWaits.begin(), m_pinWaits.end(), [](auto& pinWait)
 				{
 					return (pinWait.m_pFence->GetCompletedValue() >= pinWait.m_value);
-				}));
+				}), 
+				m_pinWaits.end());
 
 			return m_pinWaits.size() > 0;
 		}
@@ -713,13 +714,14 @@ namespace D3DX12Residency
 						break;
 					}
 
+					RESIDENCY_CHECK(pObject->ResidencyStatus == ManagedObject::RESIDENCY_STATUS::RESIDENT);
+
 					if (pObject->IsPinned())
 					{
 						pResourceEntry = pResourceEntry->Flink;
 					}
 					else
 					{
-						RESIDENCY_CHECK(pObject->ResidencyStatus == ManagedObject::RESIDENCY_STATUS::RESIDENT);
 						EvictionList[NumObjectsToEvict++] = pObject->pUnderlying;
 						Evict(pObject);
 
