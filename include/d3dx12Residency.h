@@ -110,6 +110,66 @@ namespace D3DX12Residency
 		class ResidencyManagerInternal;
 	}
 
+	// Used to contain waits that must be satisfied before a pinned ManagedObject can be unpinned.
+	class PinWaits
+	{
+	public:
+		class PinWait
+		{
+		public:
+			PinWait(ID3D12Fence* pFence, UINT64 value)
+				: m_pFence(pFence), m_value(value)
+			{
+				m_pFence->AddRef();
+			}
+
+			PinWait(const PinWait& pinWait)
+			{
+				m_pFence = pinWait.m_pFence;
+				m_pFence->AddRef();
+				m_value = pinWait.m_value;
+			}
+
+			~PinWait()
+			{
+				m_pFence->Release();
+			}
+
+			ID3D12Fence* m_pFence;
+			UINT64 m_value;
+		};
+
+		~PinWaits() { ClearPinWaits(); }
+
+		void ClearPinWaits()
+		{
+			m_pinWaits.clear();
+		}
+
+		void AddPinWaits(UINT NumSync, _In_reads_(NumSync) UINT64* pSignalValues, _In_reads_(NumSync) ID3D12Fence** ppFences)
+		{
+			m_pinWaits.reserve(m_pinWaits.size() + NumSync); // throw( bad_alloc);
+			for (UINT i(0); i < NumSync; ++i)
+			{
+				m_pinWaits.emplace_back(ppFences[i], pSignalValues[i]);
+			}
+		}
+
+		bool CheckPinWaits()
+		{
+			m_pinWaits.erase(std::remove_if(m_pinWaits.begin(), m_pinWaits.end(), [](auto& pinWait)
+				{
+					return (pinWait.m_pFence->GetCompletedValue() >= pinWait.m_value);
+				}), 
+				m_pinWaits.end());
+
+			return m_pinWaits.size() > 0;
+		}
+
+	private:
+		std::vector<PinWait> m_pinWaits;
+	};
+
 	// Used to track meta data for each object the app potentially wants
 	// to make resident or evict.
 	class ManagedObject
@@ -126,7 +186,8 @@ namespace D3DX12Residency
 			Size(0),
 			ResidencyStatus(RESIDENCY_STATUS::RESIDENT),
 			LastGPUSyncPoint(0),
-			LastUsedTimestamp(0)
+			LastUsedTimestamp(0),
+			PinCount(0)
 		{
 			memset(CommandListsUsedOn, 0, sizeof(CommandListsUsedOn));
 		}
@@ -151,6 +212,11 @@ namespace D3DX12Residency
 
 		inline bool IsInitialized() { return pUnderlying != nullptr; }
 
+		bool IsPinned() { return PinCount > 0 || m_pinWaits.CheckPinWaits(); }
+		void Pin() { ++PinCount; }
+		void AddPinWaits(UINT NumSync, _In_reads_(NumSync) UINT64* pSignalValues, _In_reads_(NumSync) ID3D12Fence** ppFences) { return m_pinWaits.AddPinWaits(NumSync, pSignalValues, ppFences); }
+		void UnPin() { RESIDENCY_CHECK(PinCount > 0);  --PinCount; }
+
 		// Wether the object is resident or not
 		RESIDENCY_STATUS ResidencyStatus;
 
@@ -167,6 +233,11 @@ namespace D3DX12Residency
 
 		// Linked list entry
 		LIST_ENTRY ListEntry;
+
+		// Pinning an object prevents eviction.  Callers must seperately make resident as usual.
+		UINT32 PinCount;
+
+		PinWaits m_pinWaits;
 	};
 
 	// This represents a set of objects which are referenced by a command list i.e. every time a resource
@@ -585,6 +656,7 @@ namespace D3DX12Residency
 			void Evict(ManagedObject* pObject)
 			{
 				RESIDENCY_CHECK(pObject->ResidencyStatus == ManagedObject::RESIDENCY_STATUS::RESIDENT);
+				RESIDENCY_CHECK(!pObject->IsPinned());
 
 				pObject->ResidencyStatus = ManagedObject::RESIDENCY_STATUS::EVICTED;
 				Internal::RemoveEntryList(&pObject->ListEntry);
@@ -612,12 +684,19 @@ namespace D3DX12Residency
 
 					RESIDENCY_CHECK(pObject->ResidencyStatus == ManagedObject::RESIDENCY_STATUS::RESIDENT);
 
-					EvictionList[NumObjectsToEvict++] = pObject->pUnderlying;
-					Evict(pObject);
+					if (pObject->IsPinned())
+					{
+						pResourceEntry = pResourceEntry->Flink;
+					}
+					else
+					{
+						EvictionList[NumObjectsToEvict++] = pObject->pUnderlying;
+						Evict(pObject);
 
-					CurrentUsage -= pObject->Size;
+						CurrentUsage -= pObject->Size;
 
-					pResourceEntry = ResidentObjectListHead.Flink;
+						pResourceEntry = ResidentObjectListHead.Flink;
+					}
 				}
 			}
 
@@ -636,10 +715,18 @@ namespace D3DX12Residency
 					}
 
 					RESIDENCY_CHECK(pObject->ResidencyStatus == ManagedObject::RESIDENCY_STATUS::RESIDENT);
-					EvictionList[NumObjectsToEvict++] = pObject->pUnderlying;
-					Evict(pObject);
 
-					pResourceEntry = ResidentObjectListHead.Flink;
+					if (pObject->IsPinned())
+					{
+						pResourceEntry = pResourceEntry->Flink;
+					}
+					else
+					{
+						EvictionList[NumObjectsToEvict++] = pObject->pUnderlying;
+						Evict(pObject);
+
+						pResourceEntry = ResidentObjectListHead.Flink;
+					}
 				}
 			}
 
