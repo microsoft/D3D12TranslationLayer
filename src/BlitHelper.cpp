@@ -337,6 +337,13 @@ namespace D3D12TranslationLayer
             UINT subresourceIndex = pSrcSubresourceIndices[0];
             auto& srcSubresourceFootprint = pSrc->GetSubresourcePlacement(subresourceIndex).Footprint;
             int srcPositions[6] = { srcRect.left, srcRect.right, srcRect.top, srcRect.bottom, (int)srcSubresourceFootprint.Width, (int)srcSubresourceFootprint.Height };
+
+            if (srcSubresourceFootprint.Format == DXGI_FORMAT_YUY2 &&
+                m_pParent->m_CreationArgs.AdjustYUY2BlitCoords)
+            {
+                srcPositions[4] *= 2;
+            }
+
             pCommandList->SetGraphicsRoot32BitConstants(1, _countof(srcPositions), &srcPositions[0], 0);
         }
 
