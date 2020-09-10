@@ -846,6 +846,7 @@ public:
         UINT UseResidencyManagement : 1;
         UINT DisableGPUTimeout : 1;
         UINT IsXbox : 1;
+        UINT AdjustYUY2BlitCoords : 1;
         GUID CreatorID;
     };
 
