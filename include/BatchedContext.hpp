@@ -558,7 +558,8 @@ public:
         auto Size = pResource->GetResourceSize();
         m_PostBatchFunctions.emplace_back([pResource]() { pResource->Release(); });
         m_PendingDestructionMemorySize += Size;
-        if (m_PendingDestructionMemorySize >= 64 * 1024 * 1024)
+        if (m_PendingDestructionMemorySize >= 64 * 1024 * 1024 ||
+            pResource->Parent()->IsShared())
         {
             SubmitBatch();
         }
