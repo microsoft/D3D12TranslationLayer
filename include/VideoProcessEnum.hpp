@@ -100,7 +100,7 @@ namespace D3D12TranslationLayer
         const std::vector<DXGI_FORMAT> & GetVPOutputFormats() const { return m_vpOutputFormats; }
         UINT GetVPInputFormatCount() { return (UINT)m_vpInputFormats.size(); }
         UINT GetVPOutputFormatCount() { return (UINT)m_vpOutputFormats.size(); }
-        void CacheVideoProcessInfo(_In_ VIDEO_PROCESS_ENUM_ARGS &args);
+        virtual void CacheVideoProcessInfo(_In_ VIDEO_PROCESS_ENUM_ARGS &args);
         ReferenceInfo UpdateReferenceInfo(D3D12_VIDEO_PROCESS_DEINTERLACE_FLAGS DeinterlaceSupport);
         D3D12_VIDEO_PROCESS_DEINTERLACE_FLAGS GetDeinterlaceSupport() { return m_deinterlaceFlags; }
         bool IsAutoProcessingSupported() { return m_autoprocessingSupported; }
