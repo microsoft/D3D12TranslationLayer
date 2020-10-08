@@ -25,7 +25,7 @@
 #include <d3d12compatibility.h>
 #include <d3dx12.h>
 #include <d3d11_3.h>
-#include <dxgi1_4.h>
+#include <dxgi1_5.h>
 
 //STL
 #include <utility>

@@ -196,15 +196,24 @@ namespace D3D12TranslationLayer
         void EmulateVPBlit(_Inout_updates_(NumInputStreams) VIDEO_PROCESS_INPUT_ARGUMENTS *pInputArguments, _In_ UINT NumInputStreams, _In_ VIDEO_PROCESS_OUTPUT_ARGUMENTS *pOutputArguments, _In_ UINT StartStream);
     };
 
-    class BatchedVideoProcess : public BatchedDeviceChildImpl<VideoProcess>
+    class BatchedVideoProcess
     {
     public:
-        BatchedVideoProcess(BatchedContext& Context, D3D12_VIDEO_PROCESS_DEINTERLACE_FLAGS DeinterlaceMode)
+        virtual ~BatchedVideoProcess() {}
+
+        virtual void ProcessFrames(_Inout_updates_(NumInputStreams) VIDEO_PROCESS_INPUT_ARGUMENTS* pInputArguments, _In_ UINT NumInputStreams, _In_ VIDEO_PROCESS_OUTPUT_ARGUMENTS* pOutputArguments) = 0;
+
+    };
+
+    class BatchedVideoProcessImpl : public BatchedDeviceChildImpl<VideoProcess>, public BatchedVideoProcess
+    {
+    public:
+        BatchedVideoProcessImpl(BatchedContext& Context, D3D12_VIDEO_PROCESS_DEINTERLACE_FLAGS DeinterlaceMode)
             : BatchedDeviceChildImpl(Context, DeinterlaceMode)
         {
         }
 
-        void ProcessFrames(_Inout_updates_(NumInputStreams) VIDEO_PROCESS_INPUT_ARGUMENTS *pInputArguments, _In_ UINT NumInputStreams, _In_ VIDEO_PROCESS_OUTPUT_ARGUMENTS *pOutputArguments)
+        void ProcessFrames(_Inout_updates_(NumInputStreams) VIDEO_PROCESS_INPUT_ARGUMENTS *pInputArguments, _In_ UINT NumInputStreams, _In_ VIDEO_PROCESS_OUTPUT_ARGUMENTS *pOutputArguments) override
         {
            FlushBatchAndGetImmediate().ProcessFrames(pInputArguments, NumInputStreams, pOutputArguments);
         }
