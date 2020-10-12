@@ -4177,6 +4177,8 @@ void TRANSLATION_API ImmediateContext::DeleteRenameCookie(Resource* pRenameResou
     auto LockedContainer = m_RenamesInFlight.GetLocked();
     auto iter = std::find_if(LockedContainer->begin(), LockedContainer->end(),
                              [pRenameResource](unique_comptr<Resource> const& r) { return r.get() == pRenameResource; });
+    assert(iter != LockedContainer->end());
+    pRenameResource->UsedInCommandList(COMMAND_LIST_TYPE::GRAPHICS, GetCommandListID(COMMAND_LIST_TYPE::GRAPHICS));
     LockedContainer->erase(iter);
 }
 
