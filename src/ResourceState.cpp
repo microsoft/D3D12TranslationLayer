@@ -759,6 +759,14 @@ namespace D3D12TranslationLayer
         {
             after |= SharedState.State[(UINT)m_DestinationCommandListType];
             assert(!IsD3D12WriteState(after, SubresourceTransitionFlags::None));
+
+            auto& ExclusiveState = CurrentState.GetExclusiveSubresourceState(i);
+            if (ExclusiveState.CommandListType != COMMAND_LIST_TYPE::UNKNOWN)
+            {
+                m_QueueFenceValuesToWaitOn[(UINT)ExclusiveState.CommandListType] =
+                    std::max(m_QueueFenceValuesToWaitOn[(UINT)ExclusiveState.CommandListType],
+                            ExclusiveState.FenceValue);
+            }
         }
 
         if (bQueueStateUpdate)
