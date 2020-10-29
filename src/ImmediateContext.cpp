@@ -4178,7 +4178,13 @@ void TRANSLATION_API ImmediateContext::DeleteRenameCookie(Resource* pRenameResou
     auto iter = std::find_if(LockedContainer->begin(), LockedContainer->end(),
                              [pRenameResource](unique_comptr<Resource> const& r) { return r.get() == pRenameResource; });
     assert(iter != LockedContainer->end());
-    pRenameResource->UsedInCommandList(COMMAND_LIST_TYPE::GRAPHICS, GetCommandListID(COMMAND_LIST_TYPE::GRAPHICS));
+
+    // The only scenario where video is relevant here is for decode bitstream buffers. All other instances of
+    // resource renaming are Map(DISCARD) graphics operations.
+    COMMAND_LIST_TYPE CmdListType = pRenameResource->GetAllocatorHeapType() == AllocatorHeapType::Decoder ?
+        COMMAND_LIST_TYPE::VIDEO_DECODE : COMMAND_LIST_TYPE::GRAPHICS;
+
+    pRenameResource->UsedInCommandList(CmdListType, GetCommandListID(CmdListType));
     LockedContainer->erase(iter);
 }
 
