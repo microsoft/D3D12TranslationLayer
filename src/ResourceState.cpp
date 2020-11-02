@@ -761,7 +761,8 @@ namespace D3D12TranslationLayer
             assert(!IsD3D12WriteState(after, SubresourceTransitionFlags::None));
 
             auto& ExclusiveState = CurrentState.GetExclusiveSubresourceState(i);
-            if (ExclusiveState.CommandListType != COMMAND_LIST_TYPE::UNKNOWN)
+            if (ExclusiveState.CommandListType != COMMAND_LIST_TYPE::UNKNOWN &&
+                ExclusiveState.CommandListType != m_DestinationCommandListType)
             {
                 m_QueueFenceValuesToWaitOn[(UINT)ExclusiveState.CommandListType] =
                     std::max(m_QueueFenceValuesToWaitOn[(UINT)ExclusiveState.CommandListType],
@@ -858,8 +859,18 @@ namespace D3D12TranslationLayer
         }
 
         // Step 3: Flush the destination command list type if necessary
-        bool bFlushDestination = (m_bApplyDeferredWaits && !m_DeferredWaits.empty()) ||
-            std::any_of(std::begin(m_QueueFenceValuesToWaitOn), std::end(m_QueueFenceValuesToWaitOn), [](UINT64 v) { return v != 0; });
+        bool bFlushDestination = (m_bApplyDeferredWaits && !m_DeferredWaits.empty());
+        if (!bFlushDestination)
+        {
+            for (UINT i = 0; i < (UINT)COMMAND_LIST_TYPE::MAX_VALID; ++i)
+            {
+                if (m_InsertedQueueSync[(UINT)m_DestinationCommandListType][i] < m_QueueFenceValuesToWaitOn[i])
+                {
+                    bFlushDestination = true;
+                    break;
+                }
+            }
+        }
 
         auto& SrcVec = m_vSrcResourceBarriers[(UINT)m_DestinationCommandListType];
         if (bFlushDestination && HasCommandsImpl(m_DestinationCommandListType))
@@ -893,9 +904,10 @@ namespace D3D12TranslationLayer
         }
         for (UINT i = 0; i < (UINT)COMMAND_LIST_TYPE::MAX_VALID; ++i)
         {
-            if (m_QueueFenceValuesToWaitOn[i])
+            if (m_InsertedQueueSync[(UINT)m_DestinationCommandListType][i] < m_QueueFenceValuesToWaitOn[i])
             {
                 InsertQueueWaitImpl(m_QueueFenceValuesToWaitOn[i], (COMMAND_LIST_TYPE)i, m_DestinationCommandListType);
+                m_InsertedQueueSync[(UINT)m_DestinationCommandListType][i] = m_QueueFenceValuesToWaitOn[i];
             }
         }
 
