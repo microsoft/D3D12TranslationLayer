@@ -239,6 +239,8 @@ constexpr D3D12_RESOURCE_STATES RESOURCE_STATE_ALL_WRITE_BITS =
         bool m_bFlushQueues[(UINT)COMMAND_LIST_TYPE::MAX_VALID];
         UINT64 m_QueueFenceValuesToWaitOn[(UINT)COMMAND_LIST_TYPE::MAX_VALID];
 
+        UINT64 m_InsertedQueueSync[(UINT)COMMAND_LIST_TYPE::MAX_VALID][(UINT)COMMAND_LIST_TYPE::MAX_VALID] = {};
+
         ResourceStateManagerBase() noexcept(false);
 
         ~ResourceStateManagerBase() noexcept
