@@ -2,9 +2,12 @@
 // Licensed under the MIT License.
 #pragma once
 
+#include "ResourceBinding.hpp"
+
 namespace D3D12TranslationLayer
 {
     class CommandListManager;
+    class Fence;
 
 // These are defined in the private d3d12 header
 #define UNKNOWN_RESOURCE_STATE (D3D12_RESOURCE_STATES)0x8000u

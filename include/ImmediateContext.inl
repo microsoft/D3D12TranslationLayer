@@ -265,7 +265,7 @@ inline bool CViewBoundState<TBindable, NumBindSlots>::IsDirty(TDeclVector const&
 
     if (!bDirty)
     {
-        bDirty = DirtyBitsUpTo(static_cast<UINT>(New.size()));
+        bDirty = this->DirtyBitsUpTo(static_cast<UINT>(New.size()));
     }
 
     if (bDirty)
@@ -944,21 +944,6 @@ template<> struct SRVBindIndices<e_HS> { static const UINT c_TableIndex = 10; };
 template<> struct SRVBindIndices<e_DS> { static const UINT c_TableIndex = 13; };
 template<> struct SRVBindIndices<e_CS> { static const UINT c_TableIndex = 1; };
 
-template<EShaderStage eShader>
-inline void ImmediateContext::ApplyShaderResourcesHelper() noexcept
-{
-    typedef SShaderTraits<eShader> TShaderTraits;
-    SStageState& CurrentState = TShaderTraits::CurrentStageState(m_CurrentState);
-    if ((m_StatesToReassert & TShaderTraits::c_ShaderResourcesDirty) == 0)
-    {
-        return;
-    }
-
-    (GetGraphicsCommandList()->*DescriptorBindFuncs<eShader>::GetBindFunc())(
-        SRVBindIndices<eShader>::c_TableIndex,
-        CurrentState.m_SRVTableBase);
-}
-
 //----------------------------------------------------------------------------------------------------------------------------------
 template<EShaderStage eShader> struct CBBindIndices;
 template<> struct CBBindIndices<e_PS> { static const UINT c_TableIndex = 0; };
@@ -968,21 +953,6 @@ template<> struct CBBindIndices<e_HS> { static const UINT c_TableIndex = 9; };
 template<> struct CBBindIndices<e_DS> { static const UINT c_TableIndex = 12; };
 template<> struct CBBindIndices<e_CS> { static const UINT c_TableIndex = 0; };
 
-template<EShaderStage eShader>
-inline void ImmediateContext::ApplyConstantBuffersHelper() noexcept
-{
-    typedef SShaderTraits<eShader> TShaderTraits;
-    SStageState& CurrentState = TShaderTraits::CurrentStageState(m_CurrentState);
-    if ((m_StatesToReassert & TShaderTraits::c_ConstantBuffersDirty) == 0)
-    {
-        return;
-    }
-
-    (GetGraphicsCommandList()->*DescriptorBindFuncs<eShader>::GetBindFunc())(
-        CBBindIndices<eShader>::c_TableIndex,
-        CurrentState.m_CBTableBase);
-}
-
 //----------------------------------------------------------------------------------------------------------------------------------
 template<EShaderStage eShader> struct SamplerBindIndices;
 template<> struct SamplerBindIndices<e_PS> { static const UINT c_TableIndex = 2; };
@@ -991,21 +961,6 @@ template<> struct SamplerBindIndices<e_GS> { static const UINT c_TableIndex = 8;
 template<> struct SamplerBindIndices<e_HS> { static const UINT c_TableIndex = 11; };
 template<> struct SamplerBindIndices<e_DS> { static const UINT c_TableIndex = 14; };
 template<> struct SamplerBindIndices<e_CS> { static const UINT c_TableIndex = 2; };
-
-template<EShaderStage eShader>
-inline void ImmediateContext::ApplySamplersHelper() noexcept
-{
-    typedef SShaderTraits<eShader> TShaderTraits;
-    SStageState& CurrentState = TShaderTraits::CurrentStageState(m_CurrentState);
-    if ((m_StatesToReassert & TShaderTraits::c_SamplersDirty) == 0)
-    {
-        return;
-    }
-
-    (GetGraphicsCommandList()->*DescriptorBindFuncs<eShader>::GetBindFunc())(
-        SamplerBindIndices<eShader>::c_TableIndex,
-        CurrentState.m_SamplerTableBase);
-}
 
 //----------------------------------------------------------------------------------------------------------------------------------
 template<EShaderStage eShader> struct DescriptorBindFuncs
@@ -1022,6 +977,51 @@ template<> struct DescriptorBindFuncs<e_CS>
         return &ID3D12GraphicsCommandList::SetComputeRootDescriptorTable;
     }
 };
+
+template<EShaderStage eShader>
+inline void ImmediateContext::ApplyShaderResourcesHelper() noexcept
+{
+    typedef SShaderTraits<eShader> TShaderTraits;
+    SStageState& CurrentState = TShaderTraits::CurrentStageState(m_CurrentState);
+    if ((m_StatesToReassert & TShaderTraits::c_ShaderResourcesDirty) == 0)
+    {
+        return;
+    }
+
+    (GetGraphicsCommandList()->*DescriptorBindFuncs<eShader>::GetBindFunc())(
+        SRVBindIndices<eShader>::c_TableIndex,
+        CurrentState.m_SRVTableBase);
+}
+
+template<EShaderStage eShader>
+inline void ImmediateContext::ApplyConstantBuffersHelper() noexcept
+{
+    typedef SShaderTraits<eShader> TShaderTraits;
+    SStageState& CurrentState = TShaderTraits::CurrentStageState(m_CurrentState);
+    if ((m_StatesToReassert & TShaderTraits::c_ConstantBuffersDirty) == 0)
+    {
+        return;
+    }
+
+    (GetGraphicsCommandList()->*DescriptorBindFuncs<eShader>::GetBindFunc())(
+        CBBindIndices<eShader>::c_TableIndex,
+        CurrentState.m_CBTableBase);
+}
+
+template<EShaderStage eShader>
+inline void ImmediateContext::ApplySamplersHelper() noexcept
+{
+    typedef SShaderTraits<eShader> TShaderTraits;
+    SStageState& CurrentState = TShaderTraits::CurrentStageState(m_CurrentState);
+    if ((m_StatesToReassert & TShaderTraits::c_SamplersDirty) == 0)
+    {
+        return;
+    }
+
+    (GetGraphicsCommandList()->*DescriptorBindFuncs<eShader>::GetBindFunc())(
+        SamplerBindIndices<eShader>::c_TableIndex,
+        CurrentState.m_SamplerTableBase);
+}
 
 //----------------------------------------------------------------------------------------------------------------------------------
 inline void TRANSLATION_API ImmediateContext::Dispatch(UINT x, UINT y, UINT z)

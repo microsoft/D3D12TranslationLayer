@@ -13,4 +13,9 @@ namespace D3D12TranslationLayer
     {
         m_Parent.ProcessBatch();
     }
-};
+
+    UINT64 DeviceChild::GetCommandListID(COMMAND_LIST_TYPE CommandListType) const
+    {
+        return m_pParent->GetCommandListID(CommandListType);
+    }
+}

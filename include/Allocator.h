@@ -2,6 +2,8 @@
 // Licensed under the MIT License.
 #pragma once
 
+#include "BlockAllocators.h"
+
 namespace D3D12TranslationLayer 
 {
     class HeapSuballocationBlock : public BlockAllocators::CGenericBlock<UINT64>

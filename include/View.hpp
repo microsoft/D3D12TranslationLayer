@@ -125,7 +125,7 @@ namespace D3D12TranslationLayer
 
         const TDesc12& GetDesc12() noexcept;
 
-        bool IsUpToDate() const noexcept { return m_pResource->GetUniqueness<TIface>() == m_ViewUniqueness; }
+        bool IsUpToDate() const noexcept;
         HRESULT RefreshUnderlying() noexcept;
         D3D12_CPU_DESCRIPTOR_HANDLE GetRefreshedDescriptorHandle()
         {
