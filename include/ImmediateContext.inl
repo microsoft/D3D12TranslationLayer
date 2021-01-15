@@ -496,6 +496,12 @@ inline void ImmediateContext::PreDraw() noexcept(false)
     PIXScopedEvent(GetGraphicsCommandList(), 0ull, L"PreDraw");
     PreRender(COMMAND_LIST_TYPE::GRAPHICS);
 
+    if (m_bUseRingBufferDescriptorHeaps)
+    {
+        // Always dirty the state when using ring buffer heaps because we can't safely reuse tables in that case.
+        m_DirtyStates |= EDirtyBits::e_HeapBindingsDirty;
+    }
+
     if (m_DirtyStates & e_GraphicsRootSignatureDirty)
     {
         m_StatesToReassert |= e_GraphicsBindingsDirty; // All bindings need to be reapplied
@@ -1077,6 +1083,12 @@ inline void ImmediateContext::PreDispatch() noexcept(false)
 {
     PIXScopedEvent(GetGraphicsCommandList(), 0ull, L"PreDispatch");
     PreRender(COMMAND_LIST_TYPE::GRAPHICS);
+
+    if (m_bUseRingBufferDescriptorHeaps)
+    {
+        // Always dirty the state when using ring buffer heaps because we can't safely reuse tables in that case.
+        m_DirtyStates |= EDirtyBits::e_HeapBindingsDirty;
+    }
 
     if (m_DirtyStates & e_ComputeRootSignatureDirty)
     {
