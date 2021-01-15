@@ -7,7 +7,7 @@
 
 namespace D3D12TranslationLayer
 {
-    constexpr bool g_bUseRingBufferDescriptorHeaps = false;
+
 //==================================================================================================================================
 // 
 //==================================================================================================================================
@@ -103,6 +103,7 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
 #if DBG
     , m_DebugFlags(debugFlags)
 #endif
+    , m_bUseRingBufferDescriptorHeaps(args.IsXbox)
 {
     UNREFERENCED_PARAMETER(debugFlags);
     memset(m_BlendFactor, 0, sizeof(m_BlendFactor));
@@ -164,7 +165,7 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
     m_vUAVBarriers.reserve(D3D11_1_UAV_SLOT_COUNT); // throw( bad_alloc )
 
     m_ViewHeap.m_MaxHeapSize = D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_1;
-    const UINT32 viewHeapStartingCount = g_bUseRingBufferDescriptorHeaps ? 4096 : m_ViewHeap.m_MaxHeapSize;
+    const UINT32 viewHeapStartingCount = m_bUseRingBufferDescriptorHeaps ? 4096 : m_ViewHeap.m_MaxHeapSize;
     m_ViewHeap.m_DescriptorRingBuffer = CFencedRingBuffer(viewHeapStartingCount);
     m_ViewHeap.m_Desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     m_ViewHeap.m_Desc.NumDescriptors = viewHeapStartingCount;
@@ -172,7 +173,7 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
     m_ViewHeap.m_Desc.NodeMask = GetNodeMask();
 
     m_SamplerHeap.m_MaxHeapSize = D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE;
-    const UINT32 samplerHeapStartingCount = g_bUseRingBufferDescriptorHeaps ? 512 : m_SamplerHeap.m_MaxHeapSize;
+    const UINT32 samplerHeapStartingCount = m_bUseRingBufferDescriptorHeaps ? 512 : m_SamplerHeap.m_MaxHeapSize;
     m_SamplerHeap.m_DescriptorRingBuffer = CFencedRingBuffer(samplerHeapStartingCount);
     m_SamplerHeap.m_Desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
     m_SamplerHeap.m_Desc.NumDescriptors = samplerHeapStartingCount;
@@ -514,7 +515,7 @@ void TRANSLATION_API ImmediateContext::PostSubmitNotification()
 
     const UINT64 completedFence = GetCompletedFenceValue(COMMAND_LIST_TYPE::GRAPHICS);
 
-    if (g_bUseRingBufferDescriptorHeaps)
+    if (m_bUseRingBufferDescriptorHeaps)
     {
         m_ViewHeap.m_DescriptorRingBuffer.Deallocate(completedFence);
         m_SamplerHeap.m_DescriptorRingBuffer.Deallocate(completedFence);
@@ -545,16 +546,13 @@ void ImmediateContext::RollOverHeap(OnlineDescriptorHeap& Heap) noexcept(false)
     }
     else
     {
-        if constexpr (g_bUseRingBufferDescriptorHeaps)
+        if (m_bUseRingBufferDescriptorHeaps && g_hTracelogging)
         {
-            if (g_hTracelogging)
-            {
-                TraceLoggingWrite(g_hTracelogging,
-                    "HeavyDescriptorHeapUsage",
-                    TraceLoggingUInt32(UINT(Heap.m_Desc.Type), "HeapTypeEnum"),
-                    TraceLoggingKeyword(MICROSOFT_KEYWORD_MEASURES),
-                    TraceLoggingLevel(TRACE_LEVEL_INFORMATION));
-            }
+            TraceLoggingWrite(g_hTracelogging,
+                "HeavyDescriptorHeapUsage",
+                TraceLoggingUInt32(UINT(Heap.m_Desc.Type), "HeapTypeEnum"),
+                TraceLoggingKeyword(MICROSOFT_KEYWORD_MEASURES),
+                TraceLoggingLevel(TRACE_LEVEL_INFORMATION));
         }
 
         // If we reach this point they are really heavy heap users so we can fall back the roll over strategy

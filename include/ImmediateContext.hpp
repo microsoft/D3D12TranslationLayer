@@ -1603,6 +1603,8 @@ private:
         UINT m_Size = 0;
 
     } m_SyncronousOpScrachSpace;
+
+    const bool m_bUseRingBufferDescriptorHeaps;
 };
 
 struct SafeRenameResourceCookie
