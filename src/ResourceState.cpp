@@ -949,7 +949,8 @@ namespace D3D12TranslationLayer
             auto pSharingContract = pDestinationManager->GetSharingContract();
             for (auto& Wait : m_DeferredWaits)
             {
-                if (pSharingContract)
+                if (   pSharingContract 
+                    && (Wait.fence->Get()->GetCreationFlags() & D3D12_FENCE_FLAG_SHARED) != 0)
                 {
                     // Note, this is not when the fence is actually signaled during a standard app run.
                     // However, for tools purposes, they need to know that the fence will be signaled before the wait is inserted,
