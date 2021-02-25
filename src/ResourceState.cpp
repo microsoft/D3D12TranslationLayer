@@ -946,18 +946,8 @@ namespace D3D12TranslationLayer
             [this, ppManagers](COMMAND_LIST_TYPE type)
         {
             auto pDestinationManager = ppManagers[(UINT)type];
-            auto pSharingContract = pDestinationManager->GetSharingContract();
             for (auto& Wait : m_DeferredWaits)
             {
-                if (   pSharingContract 
-                    && (Wait.fence->Get()->GetCreationFlags() & D3D12_FENCE_FLAG_SHARED) != 0)
-                {
-                    // Note, this is not when the fence is actually signaled during a standard app run.
-                    // However, for tools purposes, they need to know that the fence will be signaled before the wait is inserted,
-                    // to prevent a deadlock during playback. The timing of this signal doesn't really matter, all that matters
-                    // is the ordering.
-                    pSharingContract->SharedFenceSignal(Wait.fence->Get(), Wait.value);
-                }
                 pDestinationManager->GetCommandQueue()->Wait(Wait.fence->Get(), Wait.value);
                 Wait.fence->UsedInCommandList(pDestinationManager->GetCommandListType(), pDestinationManager->GetCommandListID());
             }
