@@ -25,7 +25,7 @@ namespace D3D12TranslationLayer
         void SetNeedSubmitFence() noexcept { m_bNeedSubmitFence = true; }
         bool HasCommands() const noexcept { return m_NumCommands > 0; }
         bool NeedSubmitFence() const noexcept { return m_bNeedSubmitFence; }
-        bool ShouldFlushForResourceAcquire() const noexcept { return m_NumDraws > 0 || m_NumDispatches > 0; }
+        bool ShouldFlushForResourceAcquire() const noexcept { return HasCommands() || NeedSubmitFence(); }
         template <typename TFunc> void ExecuteCommandQueueCommand(TFunc&& func)
         {
             m_bNeedSubmitFence = true;
