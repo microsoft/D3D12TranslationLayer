@@ -1078,7 +1078,7 @@ void TRANSLATION_API BatchedContext::ResourceUpdateSubresourceUP(Resource* pReso
         CSubresourceSubset(1, 1, pResource->SubresourceMultiplier(), MipLevel, ArraySlice, PlaneSlice),
         &SubresourceDesc,
         pDstBox,
-        ImmediateContext::UpdateSubresourcesScenario::BatchedContext,
+        ImmediateContext::UpdateSubresourcesFlags::ScenarioBatchedContext,
         nullptr, 0, m_ImmCtx);
 
     if (PrepareHelper.FinalizeNeeded) // Might be a no-op due to box.
@@ -1103,7 +1103,7 @@ void TRANSLATION_API BatchedContext::UploadInitialData(Resource* pDst, D3D12Tran
         Subresources,
         pSrcData,
         pDstBox,
-        ImmediateContext::UpdateSubresourcesScenario::InitialData,
+        ImmediateContext::UpdateSubresourcesFlags::ScenarioInitialData,
         nullptr,
         0,
         m_ImmCtx);

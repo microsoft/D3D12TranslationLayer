@@ -1213,7 +1213,7 @@ void TRANSLATION_API ImmediateContext::SoSetTargets(_In_range_(0, 4) UINT NumTar
             };
 
             D3D11_SUBRESOURCE_DATA Data = {&offsets[i]};
-            UpdateSubresources(pSOBuffer, CSubresourceSubset(CBufferView()), &Data, &DstBox, UpdateSubresourcesScenario::ImmediateContextInternalOp);
+            UpdateSubresources(pSOBuffer, CSubresourceSubset(CBufferView()), &Data, &DstBox, UpdateSubresourcesFlags::ScenarioImmediateContextInternalOp);
         }
 
         bDirty |= m_CurrentState.m_SO.UpdateBinding(slot, pSOBuffer, e_Graphics);
@@ -1573,7 +1573,7 @@ void TRANSLATION_API ImmediateContext::ClearResourceWithNoRenderTarget(Resource*
                                SingleSubresourceSubset,
                                nullptr,
                                &srcBox,
-                               UpdateSubresourcesScenario::ImmediateContext,
+                               UpdateSubresourcesFlags::ScenarioImmediateContext,
                                ClearColor);
         }
     }
@@ -2863,7 +2863,7 @@ ImmediateContext::CPrepareUpdateSubresourcesHelper::CPrepareUpdateSubresourcesHe
     CSubresourceSubset const& Subresources,
     const D3D11_SUBRESOURCE_DATA* pSrcData,
     const D3D12_BOX* pDstBox,
-    UpdateSubresourcesScenario scenario,
+    UpdateSubresourcesFlags flags,
     const void* pClearPattern,
     UINT ClearPatternSize,
     ImmediateContext& ImmCtx)
@@ -2881,14 +2881,14 @@ ImmediateContext::CPrepareUpdateSubresourcesHelper::CPrepareUpdateSubresourcesHe
         return;
     }
 
-    InitializeMappableResource(scenario, ImmCtx, pDstBox);
+    InitializeMappableResource(flags, ImmCtx, pDstBox);
     FinalizeNeeded = CachedNeedsTemporaryUploadHeap;
 
     UploadDataToMappableResource(pSrcData, ImmCtx, pDstBox, pClearPattern, ClearPatternSize);
 
     if (FinalizeNeeded)
     {
-        WriteOutputParameters(pDstBox, scenario);
+        WriteOutputParameters(pDstBox, flags);
     }
 }
 
@@ -2977,20 +2977,21 @@ bool ImmediateContext::CPrepareUpdateSubresourcesHelper::InitializePlacementsAnd
 // Only respect predication in response to an actual UpdateSubresource (or similar) API call.
 // Internal uses of UpdateSubresource, as well as initial data, should ignore predication.
 // Batched update operations cannot even query predication and must assume a copy must be used.
-bool ImmediateContext::CPrepareUpdateSubresourcesHelper::NeedToRespectPredication(UpdateSubresourcesScenario scenario) const
+bool ImmediateContext::CPrepareUpdateSubresourcesHelper::NeedToRespectPredication(UpdateSubresourcesFlags flags) const
 {
-    return scenario == UpdateSubresourcesScenario::ImmediateContext;
+    return (flags & UpdateSubresourcesFlags::ScenarioMask) == UpdateSubresourcesFlags::ScenarioImmediateContext;
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-bool ImmediateContext::CPrepareUpdateSubresourcesHelper::NeedTemporaryUploadHeap(UpdateSubresourcesScenario scenario, ImmediateContext& ImmCtx) const
+bool ImmediateContext::CPrepareUpdateSubresourcesHelper::NeedTemporaryUploadHeap(UpdateSubresourcesFlags flags , ImmediateContext& ImmCtx) const
 {
+    UpdateSubresourcesFlags scenario = (flags & UpdateSubresourcesFlags::ScenarioMask);
     bool bCanWriteDirectlyToResource =
-        scenario != UpdateSubresourcesScenario::BatchedContext &&      // If we aren't explicitly requesting a copy to a temp...
-        (!NeedToRespectPredication(scenario) || !ImmCtx.m_CurrentState.m_pPredicate) &&      // And we don't need to respect predication...
+        scenario != UpdateSubresourcesFlags::ScenarioBatchedContext &&      // If we aren't explicitly requesting a copy to a temp...
+        (!NeedToRespectPredication(flags) || !ImmCtx.m_CurrentState.m_pPredicate) &&      // And we don't need to respect predication...
         !Dst.GetIdentity()->m_bOwnsUnderlyingResource &&             // And the resource came from a pool...
         Dst.GetAllocatorHeapType() != AllocatorHeapType::Readback;   // And it's not the readback pool...
-    if (bCanWriteDirectlyToResource && scenario != UpdateSubresourcesScenario::InitialData)
+    if (bCanWriteDirectlyToResource && scenario != UpdateSubresourcesFlags::ScenarioInitialData)
     {
         // Check if resource is idle.
         CViewSubresourceSubset SubresourceIteration(Subresources, Dst.AppDesc()->MipLevels(), Dst.AppDesc()->ArraySize(), PlaneCount);
@@ -3015,14 +3016,15 @@ bool ImmediateContext::CPrepareUpdateSubresourcesHelper::NeedTemporaryUploadHeap
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-void ImmediateContext::CPrepareUpdateSubresourcesHelper::InitializeMappableResource(UpdateSubresourcesScenario scenario, ImmediateContext& ImmCtx, D3D12_BOX const* pDstBox)
+void ImmediateContext::CPrepareUpdateSubresourcesHelper::InitializeMappableResource(UpdateSubresourcesFlags flags, ImmediateContext& ImmCtx, D3D12_BOX const* pDstBox)
 {
-    CachedNeedsTemporaryUploadHeap = NeedTemporaryUploadHeap(scenario, ImmCtx);
+    UpdateSubresourcesFlags scenario = flags & UpdateSubresourcesFlags::ScenarioMask;
+    CachedNeedsTemporaryUploadHeap = NeedTemporaryUploadHeap(flags, ImmCtx);
     if (CachedNeedsTemporaryUploadHeap)
     {
         ResourceAllocationContext threadingContext = ResourceAllocationContext::ImmediateContextThreadTemporary;
-        if ((scenario == UpdateSubresourcesScenario::InitialData && ImmCtx.m_CreationArgs.CreatesAndDestroysAreMultithreaded) ||
-            scenario == UpdateSubresourcesScenario::BatchedContext)
+        if ((scenario == UpdateSubresourcesFlags::ScenarioInitialData && ImmCtx.m_CreationArgs.CreatesAndDestroysAreMultithreaded) ||
+            scenario == UpdateSubresourcesFlags::ScenarioBatchedContext)
         {
             threadingContext = ResourceAllocationContext::FreeThread;
         }
@@ -3197,9 +3199,10 @@ void ImmediateContext::CPrepareUpdateSubresourcesHelper::UploadDataToMappableRes
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-void ImmediateContext::CPrepareUpdateSubresourcesHelper::WriteOutputParameters(D3D12_BOX const* pDstBox, UpdateSubresourcesScenario scenario)
+void ImmediateContext::CPrepareUpdateSubresourcesHelper::WriteOutputParameters(D3D12_BOX const* pDstBox, UpdateSubresourcesFlags flags)
 {
     // Write output parameters
+    UpdateSubresourcesFlags scenario = flags & UpdateSubresourcesFlags::ScenarioMask;
     if (pDstBox)
     {
         PreparedStorage.Base.DstX = pDstBox->left;
@@ -3215,15 +3218,15 @@ void ImmediateContext::CPrepareUpdateSubresourcesHelper::WriteOutputParameters(D
     PreparedStorage.Base.EncodedBlock = EncodedResourceSuballocation(mappableResource);
     PreparedStorage.Base.EncodedSubresourceSubset = Subresources;
     PreparedStorage.Base.bDisablePredication =
-        (scenario == UpdateSubresourcesScenario::InitialData || scenario == UpdateSubresourcesScenario::ImmediateContextInternalOp);
+        (scenario == UpdateSubresourcesFlags::ScenarioInitialData || scenario == UpdateSubresourcesFlags::ScenarioImmediateContextInternalOp);
     PreparedStorage.Base.bDstBoxPresent = bDstBoxPresent;
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
 _Use_decl_annotations_
-void ImmediateContext::UpdateSubresources(Resource* pDst, D3D12TranslationLayer::CSubresourceSubset const& Subresources, const D3D11_SUBRESOURCE_DATA* pSrcData, const D3D12_BOX* pDstBox, UpdateSubresourcesScenario scenario, const void* pClearColor )
+void ImmediateContext::UpdateSubresources(Resource* pDst, D3D12TranslationLayer::CSubresourceSubset const& Subresources, const D3D11_SUBRESOURCE_DATA* pSrcData, const D3D12_BOX* pDstBox, UpdateSubresourcesFlags flags, const void* pClearColor )
 {
-    CPrepareUpdateSubresourcesHelper PrepareHelper(*pDst, Subresources, pSrcData, pDstBox, scenario, pClearColor, 0, *this);
+    CPrepareUpdateSubresourcesHelper PrepareHelper(*pDst, Subresources, pSrcData, pDstBox, flags, pClearColor, 0, *this);
     if (PrepareHelper.FinalizeNeeded)
     {
         FinalizeUpdateSubresources(pDst, PrepareHelper.PreparedStorage.Base, PrepareHelper.bUseLocalPlacement ? PrepareHelper.PreparedStorage.LocalPlacementDescs : nullptr);
