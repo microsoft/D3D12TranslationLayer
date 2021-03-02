@@ -918,18 +918,19 @@ public:
                                          D3D12_SUBRESOURCE_FOOTPRINT& Placement, UINT DepthPitch, UINT TightRowPitch) noexcept;
 
     // This is similar to the D3D12 header helper method, but it can handle 11on12-emulated resources, as well as a dst box
-    enum class UpdateSubresourcesScenario
+    enum class UpdateSubresourcesFlags
     {
-        ImmediateContext,           // Servicing an immediate context operation, e.g. UpdateSubresource API or some kind of clear
-        InitialData,                // Servicing a free-threaded method, but guaranteed that the dest resource is idle
-        BatchedContext,             // Servicing a queued operation, but may be occurring in parallel with immediate context operations
-        ImmediateContextInternalOp, // Servicing an internal immediate context operation (e.g. updating UAV/SO counters) and should not respect predication
+        ScenarioImmediateContext,           // Servicing an immediate context operation, e.g. UpdateSubresource API or some kind of clear
+        ScenarioInitialData,                // Servicing a free-threaded method, but guaranteed that the dest resource is idle
+        ScenarioBatchedContext,             // Servicing a queued operation, but may be occurring in parallel with immediate context operations
+        ScenarioImmediateContextInternalOp, // Servicing an internal immediate context operation (e.g. updating UAV/SO counters) and should not respect predication
+        ScenarioMask = 0x3,
     };
     void UpdateSubresources(Resource* pDst,
                             D3D12TranslationLayer::CSubresourceSubset const& Subresources,
                             _In_reads_opt_(_Inexpressible_(Subresources.NumNonExtendedSubresources())) const D3D11_SUBRESOURCE_DATA* pSrcData,
                             _In_opt_ const D3D12_BOX* pDstBox = nullptr,
-                            UpdateSubresourcesScenario scenario = UpdateSubresourcesScenario::ImmediateContext,
+                            UpdateSubresourcesFlags flags = UpdateSubresourcesFlags::ScenarioImmediateContext,
                             _In_opt_ const void* pClearColor = nullptr );
 
     struct PreparedUpdateSubresourcesOperation
@@ -983,7 +984,7 @@ public:
                                          CSubresourceSubset const& Subresources,
                                          const D3D11_SUBRESOURCE_DATA* pSrcData,
                                          const D3D12_BOX* pDstBox,
-                                         UpdateSubresourcesScenario scenario,
+                                         UpdateSubresourcesFlags flags,
                                          const void* pClearPattern,
                                          UINT ClearPatternSize,
                                          ImmediateContext& ImmCtx);
@@ -994,12 +995,12 @@ public:
 #endif
 
         bool InitializePlacementsAndCalculateSize(const D3D12_BOX* pDstBox, ID3D12Device* pDevice);
-        bool NeedToRespectPredication(UpdateSubresourcesScenario scenario) const;
-        bool NeedTemporaryUploadHeap(UpdateSubresourcesScenario scenario, ImmediateContext& ImmCtx) const;
-        void InitializeMappableResource(UpdateSubresourcesScenario scenario, ImmediateContext& ImmCtx, D3D12_BOX const* pDstBox);
+        bool NeedToRespectPredication(UpdateSubresourcesFlags flags) const;
+        bool NeedTemporaryUploadHeap(UpdateSubresourcesFlags flags, ImmediateContext& ImmCtx) const;
+        void InitializeMappableResource(UpdateSubresourcesFlags flags, ImmediateContext& ImmCtx, D3D12_BOX const* pDstBox);
         void UploadSourceDataToMappableResource(void* pDstData, D3D11_SUBRESOURCE_DATA const* pSrcData, ImmediateContext& ImmCtx);
         void UploadDataToMappableResource(D3D11_SUBRESOURCE_DATA const* pSrcData, ImmediateContext& ImmCtx, D3D12_BOX const* pDstBox, const void* pClearPattern, UINT ClearPatternSize);
-        void WriteOutputParameters(D3D12_BOX const* pDstBox, UpdateSubresourcesScenario scenario);
+        void WriteOutputParameters(D3D12_BOX const* pDstBox, UpdateSubresourcesFlags flags);
     };
     void FinalizeUpdateSubresources(Resource* pDst, PreparedUpdateSubresourcesOperation const& PreparedStorage, _In_reads_opt_(2) D3D12_PLACED_SUBRESOURCE_FOOTPRINT const* LocalPlacementDescs);
 
@@ -1606,6 +1607,8 @@ private:
 
     const bool m_bUseRingBufferDescriptorHeaps;
 };
+
+DEFINE_ENUM_FLAG_OPERATORS(ImmediateContext::UpdateSubresourcesFlags);
 
 struct SafeRenameResourceCookie
 {
