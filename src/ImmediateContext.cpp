@@ -2783,6 +2783,39 @@ void DepthStencilInterleavingReadback(DXGI_FORMAT ParentFormat, UINT PlaneIndex,
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
+inline UINT Swap10bitRBPixel(UINT pixel)
+{
+    constexpr UINT alphaMask = 3u << 30u;
+    constexpr UINT blueMask = 0x3FFu << 20u;
+    constexpr UINT greenMask = 0x3FFu << 10u;
+    constexpr UINT redMask = 0x3FFu;
+    return (pixel & (alphaMask | greenMask)) |
+        ((pixel & blueMask) >> 20u) |
+        ((pixel & redMask) << 20u);
+}
+
+//----------------------------------------------------------------------------------------------------------------------------------
+inline void Swap10bitRBUpload(const BYTE* pSrcData, UINT SrcRowPitch, UINT SrcDepthPitch,
+                              BYTE* pDstData, UINT DstRowPitch, UINT DstDepthPitch,
+                              UINT Width, UINT Height, UINT Depth)
+{
+    for (UINT z = 0; z < Depth; ++z)
+    {
+        auto pSrcSlice = pSrcData + SrcDepthPitch * z;
+        auto pDstSlice = pDstData + DstDepthPitch * z;
+        for (UINT y = 0; y < Height; ++y)
+        {
+            auto pSrcRow = pSrcSlice + SrcRowPitch * y;
+            auto pDstRow = pDstSlice + DstRowPitch * y;
+            for (UINT x = 0; x < Width; ++x)
+            {
+                reinterpret_cast<UINT*>(pDstRow)[x] = Swap10bitRBPixel(reinterpret_cast<const UINT*>(pSrcRow)[x]);
+            }
+        }
+    }
+}
+
+//----------------------------------------------------------------------------------------------------------------------------------
 _Use_decl_annotations_
 void ImmediateContext::FinalizeUpdateSubresources(Resource* pDst, PreparedUpdateSubresourcesOperation const& PreparedStorage, D3D12_PLACED_SUBRESOURCE_FOOTPRINT const* LocalPlacementDescs)
 {
@@ -2884,7 +2917,7 @@ ImmediateContext::CPrepareUpdateSubresourcesHelper::CPrepareUpdateSubresourcesHe
     InitializeMappableResource(flags, ImmCtx, pDstBox);
     FinalizeNeeded = CachedNeedsTemporaryUploadHeap;
 
-    UploadDataToMappableResource(pSrcData, ImmCtx, pDstBox, pClearPattern, ClearPatternSize);
+    UploadDataToMappableResource(pSrcData, ImmCtx, pDstBox, pClearPattern, ClearPatternSize, flags);
 
     if (FinalizeNeeded)
     {
@@ -3048,7 +3081,7 @@ void ImmediateContext::CPrepareUpdateSubresourcesHelper::InitializeMappableResou
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-void ImmediateContext::CPrepareUpdateSubresourcesHelper::UploadSourceDataToMappableResource(void* pDstData, D3D11_SUBRESOURCE_DATA const* pSrcData, ImmediateContext& ImmCtx)
+void ImmediateContext::CPrepareUpdateSubresourcesHelper::UploadSourceDataToMappableResource(void* pDstData, D3D11_SUBRESOURCE_DATA const* pSrcData, ImmediateContext& ImmCtx, UpdateSubresourcesFlags flags)
 {
     // The source data array provided is indexed by D3D11.0 subresource indices
     for (UINT SrcDataIdx = 0; SrcDataIdx < NumSrcData; ++SrcDataIdx)
@@ -3083,6 +3116,12 @@ void ImmediateContext::CPrepareUpdateSubresourcesHelper::UploadSourceDataToMappa
                                                     Placement.Footprint.Width, Placement.Footprint.Height);
                 // Intentionally not advancing the src pointer, since the next copy reads from the same data
             }
+            else if ((flags & UpdateSubresourcesFlags::ChannelSwapR10G10B10A2) != UpdateSubresourcesFlags::None)
+            {
+                Swap10bitRBUpload(pSrcPlaneData, SrcData.SysMemPitch, SrcData.SysMemSlicePitch,
+                                  pDstSubresourceData, Placement.Footprint.RowPitch, Dst.DepthPitch(Subresource),
+                                  Placement.Footprint.Width, Placement.Footprint.Height, Placement.Footprint.Depth);
+            }
             else
             {
                 // Tight row pitch is how much data to copy per row
@@ -3116,7 +3155,7 @@ void ImmediateContext::CPrepareUpdateSubresourcesHelper::UploadSourceDataToMappa
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-void ImmediateContext::CPrepareUpdateSubresourcesHelper::UploadDataToMappableResource(D3D11_SUBRESOURCE_DATA const* pSrcData, ImmediateContext& ImmCtx, D3D12_BOX const* pDstBox, const void* pClearPattern, UINT ClearPatternSize)
+void ImmediateContext::CPrepareUpdateSubresourcesHelper::UploadDataToMappableResource(D3D11_SUBRESOURCE_DATA const* pSrcData, ImmediateContext& ImmCtx, D3D12_BOX const* pDstBox, const void* pClearPattern, UINT ClearPatternSize, UpdateSubresourcesFlags flags)
 {
     // Now that we have something we can upload the data to, map it
     void* pDstData;
@@ -3132,7 +3171,7 @@ void ImmediateContext::CPrepareUpdateSubresourcesHelper::UploadDataToMappableRes
 
     if (pSrcData != nullptr)
     {
-        UploadSourceDataToMappableResource(pDstData, pSrcData, ImmCtx);
+        UploadSourceDataToMappableResource(pDstData, pSrcData, ImmCtx, flags);
     }
     else
     {

@@ -925,6 +925,9 @@ public:
         ScenarioBatchedContext,             // Servicing a queued operation, but may be occurring in parallel with immediate context operations
         ScenarioImmediateContextInternalOp, // Servicing an internal immediate context operation (e.g. updating UAV/SO counters) and should not respect predication
         ScenarioMask = 0x3,
+
+        None = 0,
+        ChannelSwapR10G10B10A2 = 0x4,
     };
     void UpdateSubresources(Resource* pDst,
                             D3D12TranslationLayer::CSubresourceSubset const& Subresources,
@@ -998,8 +1001,8 @@ public:
         bool NeedToRespectPredication(UpdateSubresourcesFlags flags) const;
         bool NeedTemporaryUploadHeap(UpdateSubresourcesFlags flags, ImmediateContext& ImmCtx) const;
         void InitializeMappableResource(UpdateSubresourcesFlags flags, ImmediateContext& ImmCtx, D3D12_BOX const* pDstBox);
-        void UploadSourceDataToMappableResource(void* pDstData, D3D11_SUBRESOURCE_DATA const* pSrcData, ImmediateContext& ImmCtx);
-        void UploadDataToMappableResource(D3D11_SUBRESOURCE_DATA const* pSrcData, ImmediateContext& ImmCtx, D3D12_BOX const* pDstBox, const void* pClearPattern, UINT ClearPatternSize);
+        void UploadSourceDataToMappableResource(void* pDstData, D3D11_SUBRESOURCE_DATA const* pSrcData, ImmediateContext& ImmCtx, UpdateSubresourcesFlags flags);
+        void UploadDataToMappableResource(D3D11_SUBRESOURCE_DATA const* pSrcData, ImmediateContext& ImmCtx, D3D12_BOX const* pDstBox, const void* pClearPattern, UINT ClearPatternSize, UpdateSubresourcesFlags flags);
         void WriteOutputParameters(D3D12_BOX const* pDstBox, UpdateSubresourcesFlags flags);
     };
     void FinalizeUpdateSubresources(Resource* pDst, PreparedUpdateSubresourcesOperation const& PreparedStorage, _In_reads_opt_(2) D3D12_PLACED_SUBRESOURCE_FOOTPRINT const* LocalPlacementDescs);
