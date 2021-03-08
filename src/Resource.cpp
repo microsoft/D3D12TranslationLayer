@@ -1065,13 +1065,17 @@ namespace D3D12TranslationLayer
             if (m_UnwrapUnderlyingResidencyDeferredWait.fence.get() == nullptr)
             {
                 m_UnwrapUnderlyingResidencyDeferredWait.fence =
-                    std::make_shared<D3D12TranslationLayer::Fence>(m_pParent, FENCE_FLAG_NONE, 0); // throw (bad_alloc)
+                    std::make_shared<D3D12TranslationLayer::Fence>(m_pParent, FENCE_FLAG_NONE, 0); // throw (_com_error, bad_alloc)
                 m_UnwrapUnderlyingResidencyDeferredWait.value = 0;
             }
 
             ++m_UnwrapUnderlyingResidencyDeferredWait.value;
             pQueue->Signal(m_UnwrapUnderlyingResidencyDeferredWait.fence->Get(), m_UnwrapUnderlyingResidencyDeferredWait.value);
             m_DeferredWaits.push_back(m_UnwrapUnderlyingResidencyDeferredWait);
+        }
+        catch( _com_error& hrEx )
+        {
+            return hrEx.Error();
         }
         catch(std::bad_alloc&)
         {
