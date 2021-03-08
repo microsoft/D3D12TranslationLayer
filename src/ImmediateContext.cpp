@@ -542,7 +542,8 @@ void ImmediateContext::RollOverHeap(OnlineDescriptorHeap& Heap) noexcept(false)
         Heap.m_Desc.NumDescriptors *= 2;
         Heap.m_Desc.NumDescriptors = min(Heap.m_Desc.NumDescriptors, Heap.m_MaxHeapSize);
 
-        Heap.m_pDescriptorHeap = pfnCreateNew(Heap.m_Desc);
+        Heap.m_pDescriptorHeap = TryAllocateResourceWithFallback([&]() { return pfnCreateNew(Heap.m_Desc); },
+            ResourceAllocationContext::ImmediateContextThreadLongLived);
     }
     else
     {
@@ -559,7 +560,9 @@ void ImmediateContext::RollOverHeap(OnlineDescriptorHeap& Heap) noexcept(false)
         Heap.m_HeapPool.ReturnToPool(std::move(Heap.m_pDescriptorHeap), GetCommandListID(COMMAND_LIST_TYPE::GRAPHICS));
 
         UINT64 CurrentFenceValue = GetCompletedFenceValue(COMMAND_LIST_TYPE::GRAPHICS);
-        Heap.m_pDescriptorHeap = Heap.m_HeapPool.RetrieveFromPool(CurrentFenceValue, pfnCreateNew, Heap.m_Desc); // throw( _com_error )
+        Heap.m_pDescriptorHeap = TryAllocateResourceWithFallback([&]() {
+            return Heap.m_HeapPool.RetrieveFromPool(CurrentFenceValue, pfnCreateNew, Heap.m_Desc); // throw( _com_error )
+            }, ResourceAllocationContext::ImmediateContextThreadLongLived);
     }
 
     Heap.m_DescriptorRingBuffer = CFencedRingBuffer(Heap.m_Desc.NumDescriptors);
