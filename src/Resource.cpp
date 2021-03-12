@@ -547,7 +547,8 @@ namespace D3D12TranslationLayer
                     D3D12_COMPATIBILITY_SHARED_FLAGS CompatFlags =
                         ((m_creationArgs.IsNTHandleShared()) ? D3D12_COMPATIBILITY_SHARED_FLAG_NONE : D3D12_COMPATIBILITY_SHARED_FLAG_NON_NT_HANDLE) |
                         ((m_creationArgs.m_flags11.MiscFlags & D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX) ? D3D12_COMPATIBILITY_SHARED_FLAG_KEYED_MUTEX : D3D12_COMPATIBILITY_SHARED_FLAG_NONE) |
-                        (m_creationArgs.m_bIsD3D9on12Resource ? D3D12_COMPATIBILITY_SHARED_FLAG_9_ON_12 : D3D12_COMPATIBILITY_SHARED_FLAG_NONE);
+                        (m_creationArgs.m_bIsD3D9on12Resource && !(HeapDesc.Flags & D3D12_HEAP_FLAG_SHARED_CROSS_ADAPTER)
+                            ? D3D12_COMPATIBILITY_SHARED_FLAG_9_ON_12 : D3D12_COMPATIBILITY_SHARED_FLAG_NONE);
 
                     hr = m_pParent->m_pCompatDevice->CreateSharedResource(
                         &HeapDesc.Properties,
