@@ -42,7 +42,8 @@ namespace D3D12TranslationLayer
             VIDEO_DECODE_BUFFER_TYPE_SLICE_CONTROL, sizeof(DXVA_Slice_VPx_Short),
             VIDEO_DECODE_BUFFER_TYPE_BITSTREAM, 0
         },
-        { 1, 2, 0, 0 }
+        // Assuming compresion ratio 1:1 for VP9 as we got bug reports for VP9 clips hitting corruption due to insufficient bitstream size
+        { 1, 1, 0, 0 }
     };
     ProfileBufferInfo VP8BufferInfo =
     {
