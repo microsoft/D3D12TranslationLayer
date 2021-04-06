@@ -1279,6 +1279,16 @@ namespace D3D12TranslationLayer
                         SliceControlBlocks = (Width * Height) / MacroblockMinSize;
                         break;
 
+                    case VIDEO_DECODE_PROFILE_TYPE_H264:
+                        // worst case scenario for H264 per tables A-1 for Level 6.2 (MaxMBPS = 16711680) and Table A-4 for SliceRate for level 6.2 (SliceRate = 24)
+                        // Taking a 4K resolution (3840*2160) @ 300 fps (allowed in level 6.2)                        
+                        // From spec ...satisfy the constraint that the number of slices in picture n is less than or equal to MaxMBPB * ( tr(n) - tr(n-1) ) / SliceRate
+                        // where MaxMBPS and SliceRate are the values specified in Tables A-1 and A-4...
+                        // tr(n) = tr(n-1) = 1 / FPSRate = 1/300
+                        // MaxSliceNumber = 2319
+                        SliceControlBlocks = 2319;
+                        break;
+
                     case VIDEO_DECODE_PROFILE_TYPE_HEVC:
                         // worst case scenario for HEVC is 600 slices per Table A.4 of the HEVC spec for profile 6.2. Setting to 1024 just in case.
                         SliceControlBlocks = 1024;
