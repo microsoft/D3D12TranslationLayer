@@ -75,7 +75,7 @@ namespace D3D12TranslationLayer
                 srcDesc.Format == DXGI_FORMAT_Y210)
             {
                 // we need to add additional math in the shader to scale from the 10bit range into the output [0,1]. As
-                // the input to the shader is normalized, we need to multiply by 2^6 to get a float in the [0,1] range.                
+                // the input to the shader is normalized, we need to multiply by 2^6 to get a float in the [0,1] range.
                 outSrcPixelScalingFactor = 64;
             }
 
