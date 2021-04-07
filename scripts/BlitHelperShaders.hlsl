@@ -3,6 +3,7 @@
                            "DENY_HULL_SHADER_ROOT_ACCESS), " \
                 "DescriptorTable (SRV(t0, numDescriptors=3), visibility=SHADER_VISIBILITY_PIXEL),"  /* [0] SRVs for the possible 3 planes*/ \
                 "RootConstants(num32BitConstants=6, b1, visibility=SHADER_VISIBILITY_VERTEX),"      /* [1] src info */ \
+                "RootConstants(num32BitConstants=1, b2, visibility=SHADER_VISIBILITY_PIXEL),"       /* [2] pixel format info */ \
                 "StaticSampler(s0, filter=FILTER_MIN_MAG_LINEAR_MIP_POINT, addressU = TEXTURE_ADDRESS_CLAMP, addressV = TEXTURE_ADDRESS_CLAMP, addressW = TEXTURE_ADDRESS_CLAMP, visibility=SHADER_VISIBILITY_PIXEL)"   /* [2] sampler */ \
 
 // texel coordinates
@@ -14,6 +15,11 @@ cbuffer srcInfo: register(b1)
     int g_srcBottom;
     int g_srcWidth;
     int g_srcHeight;
+};
+
+cbuffer pixelInfo: register(b2)
+{
+    int g_srcPixelScalingFactor;
 };
 
 struct VSOutPSIn
@@ -130,8 +136,9 @@ Texture2D <float2> inputTexturePlane2 : register(t2);
 [RootSignature(RootSig)]
 float4 PS2PlaneYUV(VSOutPSIn input) : SV_TARGET
 {
-    float4 YUVA = float4(inputTexture.Sample(g_linearSampler, input.texcoordsNorm).r, inputTexturePlane1.Sample(g_linearSampler, input.texcoordsNorm).rg, 1);
-    return YUVToRGB(YUVA);
+    float3 inputYUV = float3(inputTexture.Sample(g_linearSampler, input.texcoordsNorm).r, inputTexturePlane1.Sample(g_linearSampler, input.texcoordsNorm).rg);
+    float4 scaledYUVA = float4(inputYUV.r * g_srcPixelScalingFactor, inputYUV.g * g_srcPixelScalingFactor, inputYUV.b * g_srcPixelScalingFactor, 1);
+    return YUVToRGB(scaledYUVA);
 }
 
 // DXGI_FORMAT_V208/V408 -> t0.r = Y, t1.r = U, t2.r = V (4:4:0 or 4:4:4 subsampled)

@@ -24,7 +24,7 @@ namespace D3D12TranslationLayer
     {
     }
 
-    auto BlitHelper::PrepareShaders(Resource *pSrc, UINT srcPlanes, Resource *pDst, UINT dstPlanes, bool bEnableAlpha, bool bSwapRB) -> BlitPipelineState*
+    auto BlitHelper::PrepareShaders(Resource *pSrc, UINT srcPlanes, Resource *pDst, UINT dstPlanes, bool bEnableAlpha, bool bSwapRB, int& outSrcPixelScalingFactor) -> BlitPipelineState*
     {
         const D3D12_RESOURCE_DESC &srcDesc = pSrc->GetUnderlyingResource()->GetDesc();
         const D3D12_RESOURCE_DESC &dstDesc = pDst->GetUnderlyingResource()->GetDesc();
@@ -69,13 +69,14 @@ namespace D3D12TranslationLayer
                 CD3DX12_PIPELINE_STATE_STREAM_SAMPLE_DESC Samples;
                 CD3DX12_PIPELINE_STATE_STREAM_SAMPLE_MASK SampleMask{ UINT_MAX };
             } psoStream;
-
+            
+            outSrcPixelScalingFactor = 1;
             if (srcDesc.Format == DXGI_FORMAT_P010 ||
                 srcDesc.Format == DXGI_FORMAT_Y210)
             {
                 // we need to add additional math in the shader to scale from the 10bit range into the output [0,1]. As
-                // the input to the shader is normalized, we need to multiply by 2^6 to get a float in the [0,1] range.
-                throw _com_error(E_INVALIDARG);
+                // the input to the shader is normalized, we need to multiply by 2^6 to get a float in the [0,1] range.                
+                outSrcPixelScalingFactor = 64;
             }
 
             switch (srcPlanes)
@@ -163,7 +164,8 @@ namespace D3D12TranslationLayer
     {
         const D3D12_RESOURCE_DESC &dstDesc = pDst->GetUnderlyingResource()->GetDesc();
 
-        BlitPipelineState* pPSO = PrepareShaders(pSrc, numSrcSubresources, pDst, numDstSubresources, bEnableAlpha, bSwapRBChannels);
+        int srcPixelScalingFactor = 1;
+        BlitPipelineState* pPSO = PrepareShaders(pSrc, numSrcSubresources, pDst, numDstSubresources, bEnableAlpha, bSwapRBChannels, srcPixelScalingFactor /*out argument*/);
 
         m_pParent->PreRender(COMMAND_LIST_TYPE::GRAPHICS);
 
@@ -345,6 +347,11 @@ namespace D3D12TranslationLayer
             }
 
             pCommandList->SetGraphicsRoot32BitConstants(1, _countof(srcPositions), &srcPositions[0], 0);
+        }
+
+        // Constant buffers: srcPixelScalingFactor (For P010/Y410 UNORM pixel scaling to 10 bit range in [0.0f, 1.0f])
+        {
+            pCommandList->SetGraphicsRoot32BitConstants(2, 1, &srcPixelScalingFactor, 0);
         }
 
         pCommandList->SetPipelineState(pPSO->GetForUse(COMMAND_LIST_TYPE::GRAPHICS));
