@@ -32,7 +32,7 @@ namespace D3D12TranslationLayer
 
     protected:
         using BlitPipelineState = DeviceChildImpl<ID3D12PipelineState>;
-        BlitPipelineState* PrepareShaders(Resource *pSrc, UINT srcPlanes, Resource *pDst, UINT dstPlanes, bool bEnableAlpha, bool bSwapRB);
+        BlitPipelineState* PrepareShaders(Resource *pSrc, UINT srcPlanes, Resource *pDst, UINT dstPlanes, bool bEnableAlpha, bool bSwapRB, int &outSrcPixelScalingFactor);
 
         ImmediateContext* const m_pParent;
         std::unordered_map<UINT, std::unique_ptr<BlitPipelineState>> m_spBlitPSOs;
