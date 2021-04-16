@@ -234,7 +234,8 @@ namespace D3D12TranslationLayer
         m_fArrayOfTexture = fArrayOfTexture;
 
         ResizeDataStructures(dpb);
-        ResetAllUsage();
+        ResetInternalTrackingReferenceUsage();
+        ResetReferenceFramesInformation();
         ReleaseUnusedReferences();
 
         m_fReferenceOnly = pReferenceOnly != nullptr;
@@ -296,14 +297,21 @@ namespace D3D12TranslationLayer
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    void ReferenceDataManager::ResetAllUsage()
+    void ReferenceDataManager::ResetReferenceFramesInformation()
     {
         for (UINT index = 0; index < Size(); index++)
         {
             textures[index] = nullptr;
             texturesSubresources[index] = 0;
             decoderHeapsParameter[index] = nullptr;
+        }
+    }
 
+    //----------------------------------------------------------------------------------------------------------------------------------
+    void ReferenceDataManager::ResetInternalTrackingReferenceUsage()
+    {
+        for (UINT index = 0; index < Size(); index++)
+        {
             referenceDatas[index].fUsed = false;
         }
     }
