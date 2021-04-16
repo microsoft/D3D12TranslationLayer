@@ -495,22 +495,33 @@ namespace D3D12TranslationLayer
                     TraceLoggingPackedMetadata(TlgInUINT8, "bPicEntry"));
         }
     }
-
+    
     //----------------------------------------------------------------------------------------------------------------------------------
     void VideoDecode::ReleaseUnusedReferences()
     {
-        m_referenceDataManager.ResetAllUsage();
+        // Method overview
+        // 1. Clear the following m_referenceDataManager descriptors: textures, textureSubresources and decoder heap by calling m_referenceDataManager.ResetReferenceFramesInformation()        
+        // 2. Codec specific strategy in switch statement regarding reference frames eviction policy
+        // 3. Call m_referenceDataManager.ReleaseUnusedReferences(); at the end of this method. Any references (and texture allocations associated) that were left not marked as used in m_referenceDataManager by step (2) are lost.
+        
+        m_referenceDataManager.ResetReferenceFramesInformation();
 
         switch (m_profileType)
         {
         case VIDEO_DECODE_PROFILE_TYPE_VP9:
         {
+            // References residency policy: Mark all references as unused and only mark again as used the ones used by this frame
+            m_referenceDataManager.ResetInternalTrackingReferenceUsage();
+
             m_referenceDataManager.MarkReferencesInUse(GetPicParams<DXVA_PicParams_VP9>()->ref_frame_map);
         }
         break;
 
         case VIDEO_DECODE_PROFILE_TYPE_VP8:
         {
+            // References residency policy: Mark all references as unused and only mark again as used the ones used by this frame
+            m_referenceDataManager.ResetInternalTrackingReferenceUsage();
+            
             auto pPicParams = GetPicParams<DXVA_PicParams_VP8>();
             m_referenceDataManager.MarkReferenceInUse(pPicParams->alt_fb_idx.Index7Bits);
             m_referenceDataManager.MarkReferenceInUse(pPicParams->gld_fb_idx.Index7Bits);
@@ -520,18 +531,27 @@ namespace D3D12TranslationLayer
 
         case VIDEO_DECODE_PROFILE_TYPE_HEVC:
         {
+            // References residency policy: Mark all references as unused and only mark again as used the ones used by this frame
+            m_referenceDataManager.ResetInternalTrackingReferenceUsage();
+
             m_referenceDataManager.MarkReferencesInUse(GetPicParams<DXVA_PicParams_HEVC>()->RefPicList);
         }
         break;
 
         case VIDEO_DECODE_PROFILE_TYPE_H264:
         {
+            // References residency policy: Mark all references as unused and only mark again as used the ones used by this frame
+            m_referenceDataManager.ResetInternalTrackingReferenceUsage();
+
             m_referenceDataManager.MarkReferencesInUse(GetPicParams<DXVA_PicParams_H264>()->RefFrameList);
         }
         break;
 
         case VIDEO_DECODE_PROFILE_TYPE_H264_MVC:
         {
+            // References residency policy: Mark all references as unused and only mark again as used the ones used by this frame
+            m_referenceDataManager.ResetInternalTrackingReferenceUsage();
+
             m_referenceDataManager.MarkReferencesInUse(GetPicParams<DXVA_PicParams_H264>()->RefFrameList);
         }
         break;
@@ -540,6 +560,15 @@ namespace D3D12TranslationLayer
         case VIDEO_DECODE_PROFILE_TYPE_MPEG2:
         {
             auto pPicParams = GetPicParams<DXVA_PictureParameters>();
+
+            // If the current frame uses no references, don't evict the current active references as future frames might use them as references again
+            if ((pPicParams->wForwardRefPictureIndex != DXVA_INVALID_PICTURE_INDEX)
+                || (pPicParams->wBackwardRefPictureIndex != DXVA_INVALID_PICTURE_INDEX))
+            {
+                // References residency policy for frames that use at least one reference: Mark all references as unused and only mark again as used the ones used by this frame
+                m_referenceDataManager.ResetInternalTrackingReferenceUsage();
+            }
+            
             m_referenceDataManager.MarkReferenceInUse(pPicParams->wForwardRefPictureIndex);
             m_referenceDataManager.MarkReferenceInUse(pPicParams->wBackwardRefPictureIndex);
         }
@@ -547,6 +576,9 @@ namespace D3D12TranslationLayer
 
         case VIDEO_DECODE_PROFILE_TYPE_MPEG4PT2:
         {
+            // References residency policy: Mark all references as unused and only mark again as used the ones used by this frame
+            m_referenceDataManager.ResetInternalTrackingReferenceUsage();
+
             auto pPicParams = GetPicParams<DXVA_PicParams_MPEG4_PART2>();
             m_referenceDataManager.MarkReferenceInUse(pPicParams->wForwardRefPictureIndex);
             m_referenceDataManager.MarkReferenceInUse(pPicParams->wBackwardRefPictureIndex);
@@ -558,6 +590,7 @@ namespace D3D12TranslationLayer
             break;
         }
 
+        // Releases the underlying reference picture texture objects of all references that were not marked as used in this method.
         m_referenceDataManager.ReleaseUnusedReferences();
     }
 

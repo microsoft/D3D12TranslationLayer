@@ -42,8 +42,9 @@ namespace D3D12TranslationLayer
     
         void Resize(UINT16 dbp, _In_opt_ ReferenceOnlyDesc* pReferenceOnly, bool fArrayOfTexture);
         
-        void ResetAllUsage();
-        
+        void ResetInternalTrackingReferenceUsage();
+        void ResetReferenceFramesInformation();
+
         template<typename T, size_t size> 
         void MarkReferencesInUse(const T (&picEntries)[size]);
         void MarkReferenceInUse(UINT16 index);
