@@ -22,6 +22,8 @@ set(SRC
 	RootSignature.cpp
 	Shader.cpp
 	SubresourceHelpers.cpp
+	SwapChainHelper.cpp
+	SwapChainManager.cpp
 	Util.cpp
 	VideoDecode.cpp
 	VideoDecodeStatistics.cpp
@@ -62,6 +64,8 @@ set (INC
 	../include/segmented_stack.h
 	../include/Shader.hpp
 	../include/SubresourceHelpers.hpp
+	../include/SwapChainHelper.hpp
+	../include/SwapChainManager.hpp
 	../include/ThreadPool.hpp
 	../include/Util.hpp
 	../include/VideoDecode.hpp

@@ -518,4 +518,47 @@ namespace D3D12TranslationLayer
         bool HasLock() const { return m_Lock.has_value(); }
     };
 
+    template <typename T, size_t Size> struct CircularArray
+    {
+        T m_Array[Size];
+        struct iterator
+        {
+            using difference_type = ptrdiff_t;
+            using value_type = T;
+            using pointer = T*;
+            using reference = T&;
+            using iterator_category = std::random_access_iterator_tag;
+            T* m_Begin;
+            T* m_Current;
+            iterator( T* Begin, T* Current ) : m_Begin( Begin ), m_Current( Current ) {}
+            iterator increment( ptrdiff_t distance ) const
+            {
+                ptrdiff_t totalDistance = (distance + std::distance( m_Begin, m_Current )) % Size;
+                totalDistance = totalDistance >= 0 ? totalDistance : totalDistance + Size;
+                return iterator( m_Begin, m_Begin + totalDistance );
+            }
+            iterator& operator++() { *this = increment( 1 ); return *this; }
+            iterator operator++( int ) { iterator ret = *this; *this = increment( 1 ); return ret; }
+            iterator& operator--() { *this = increment( -1 ); return *this; }
+            iterator operator--( int ) { iterator ret = *this; *this = increment( -1 ); return ret; }
+            iterator operator+( ptrdiff_t v ) { return increment( v ); }
+            iterator& operator+=( ptrdiff_t v ) { *this = increment( v ); return *this; }
+            iterator operator-( ptrdiff_t v ) { return increment( -v ); }
+            iterator& operator-=( ptrdiff_t v ) { *this = increment( -v ); return *this; }
+            bool operator==( iterator const& o ) const { return o.m_Begin == m_Begin && o.m_Current == m_Current; }
+            bool operator!=( iterator const& o ) const { return !(o == *this); }
+            reference operator*() { return *m_Current; }
+            pointer operator->() { return m_Current; }
+            ptrdiff_t operator-( iterator const& o ) const
+            {
+                assert( o.m_Begin == m_Begin );
+                ptrdiff_t rawDistance = std::distance( o.m_Current, m_Current );
+                return rawDistance >= 0 ? rawDistance : rawDistance + Size;
+            }
+        };
+
+        iterator begin() { return iterator( m_Array, m_Array ); }
+        T& operator[]( size_t index ) { return *(begin() + index); }
+    };
+
 };

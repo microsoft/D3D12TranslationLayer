@@ -28,6 +28,7 @@
 #include "Sampler.hpp"
 #include "View.hpp"
 #include "PipelineState.hpp"
+#include "SwapChainManager.hpp"
 #include "ResourceBinding.hpp"
 #include "Fence.hpp"
 #include "ResourceState.hpp"
