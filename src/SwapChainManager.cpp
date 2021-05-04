@@ -80,5 +80,4 @@ namespace D3D12TranslationLayer
                 *m_PresentFenceValuesBegin );
         }
     }
-
 }
