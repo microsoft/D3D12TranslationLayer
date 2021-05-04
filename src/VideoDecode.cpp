@@ -892,6 +892,23 @@ namespace D3D12TranslationLayer
         switch (m_profileType)
         {
         case VIDEO_DECODE_PROFILE_TYPE_VC1:
+        {
+            auto pPicParams = GetPicParams<DXVA_PictureParameters>();
+
+            if (IsAdvancedProfile(pPicParams))
+            {
+                *pWidth = pPicParams->wPicWidthInMBminus1 + 1;
+                *pHeight = pPicParams->wPicHeightInMBminus1 + 1;
+            }
+            else
+            {
+                *pWidth = (pPicParams->wPicWidthInMBminus1 + 1) * (pPicParams->bMacroblockWidthMinus1 + 1);
+                *pHeight = (pPicParams->wPicHeightInMBminus1 + 1) * (pPicParams->bMacroblockHeightMinus1 + 1);
+            }
+            *pMaxDPB = 2 + 1;
+        }
+        break;
+
         case VIDEO_DECODE_PROFILE_TYPE_MPEG2:
         {
             auto pPicParams = GetPicParams<DXVA_PictureParameters>();
@@ -907,6 +924,26 @@ namespace D3D12TranslationLayer
                 *pHeight = (pPicParams->wPicHeightInMBminus1 + 1) * (pPicParams->bMacroblockHeightMinus1 + 1);
             }
             *pMaxDPB = 2 + 1;
+
+            // Code below adjusts pHeight if necessary for interlaced video
+
+            // These constants below correspond to picture_structure parameter of the MPEG2 spec.
+            // bPicStructure
+
+            // Indicates whether the current picture is a top - field picture(a value 1), a bottom - field picture(a value 2), or a frame picture(a value 3).
+            // In progressive - scan frame - structured coding such as in H.261, bPicStructure is 3. 
+            // A derived value PicCurrentField is defined as zero unless bPicStructure is 2 (bottom field).In which case, it is 1. 
+            // This member has the same meaning as the picture_structure variable defined in Section 6.3.10 and Table 6 - 14 of MPEG - 2 (H.262).
+            constexpr BYTE TOP_FIELD = 1;
+            constexpr BYTE BOTTOM_FIELD = 2;
+            constexpr BYTE FRAME_PICTURE = 3;
+            
+            // sample field picture has half as many macroblocks as frame
+            // but the display height used for the D3D12 decoder must be the full non-interlaced video height, not the interlaced sample height (half as the video display size)
+            if (pPicParams->bPicStructure != FRAME_PICTURE)
+            {                
+                *pHeight <<= 1;
+            }
         }
         break;
 
