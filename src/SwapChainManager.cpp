@@ -15,10 +15,12 @@ namespace D3D12TranslationLayer
         auto& spSwapChain = m_SwapChains[hwnd];
         auto pResourceDesc = presentingResource.AppDesc();
         DXGI_SWAP_CHAIN_DESC Desc = {};
+        //SwapChain creation fails if using BGRX, so pretend that it's BGRA. Present still works as expected.
+        DXGI_FORMAT format = pResourceDesc->Format() == DXGI_FORMAT_B8G8R8X8_UNORM ? DXGI_FORMAT_B8G8R8A8_UNORM : pResourceDesc->Format();
         if (spSwapChain)
         {
             spSwapChain->GetDesc( &Desc );
-            if (Desc.BufferDesc.Format != pResourceDesc->Format() ||
+            if (Desc.BufferDesc.Format != format ||
                  Desc.BufferDesc.Width != pResourceDesc->Width() ||
                  Desc.BufferDesc.Height != pResourceDesc->Height())
             {
@@ -26,14 +28,15 @@ namespace D3D12TranslationLayer
                 ThrowFailure( spSwapChain->ResizeBuffers( BufferCount,
                                                           pResourceDesc->Width(),
                                                           pResourceDesc->Height(),
-                                                          pResourceDesc->Format(),
+                                                          format,
                                                           DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING ) );
             }
         }
         else
         {
             Desc.BufferCount = BufferCount;
-            Desc.BufferDesc.Format = pResourceDesc->Format();
+            
+            Desc.BufferDesc.Format = format;
             Desc.BufferDesc.Width = pResourceDesc->Width();
             Desc.BufferDesc.Height = pResourceDesc->Height();
             Desc.OutputWindow = hwnd;
