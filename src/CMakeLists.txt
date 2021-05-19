@@ -9,6 +9,7 @@ set(SRC
 	ColorConvertHelper.cpp
 	CommandListManager.cpp
 	DeviceChild.cpp
+	DxbcBuilder.cpp
 	Fence.cpp
 	FormatDescImpl.cpp
 	ImmediateContext.cpp
@@ -47,6 +48,7 @@ set (INC
 	../include/D3D12TranslationLayerIncludes.h
 	../include/d3dx12residency.h
 	../include/DeviceChild.hpp
+	../include/DxbcBuilder.hpp
 	../include/DXGIColorSpaceHelper.h
 	../include/Fence.hpp
 	../include/FormatDesc.hpp
@@ -91,7 +93,7 @@ target_include_directories(d3d12translationlayer
 source_group(Inlines FILES ${INL})
 source_group("Header Files\\External" FILES ${EXTERNAL_INC})
 
-target_link_libraries(d3d12translationlayer d3d12 dxcore dxgi atls)
+target_link_libraries(d3d12translationlayer d3d12 dxcore dxgi atls dxbcsigner)
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../packages.config ${CMAKE_CURRENT_BINARY_DIR}/packages.config COPYONLY)
 add_library(WinPixEventRuntime INTERFACE IMPORTED GLOBAL)
