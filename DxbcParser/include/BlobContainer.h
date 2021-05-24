@@ -92,32 +92,38 @@ class CDXBCParser
 public:
     CDXBCParser();
 
+    // Sets the container to be parsed, and does some
+    // basic integrity checking, such as ensuring the version is:
+    //     Major = DXBC_MAJOR_VERSION
+    //     Minor = DXBC_MAJOR_VERSION
+    // 
+    // Returns S_OK, or E_FAIL
+    //
+    // Note, if you don't know ContainerSize and are willing to 
+    // assume your pointer pContainer is valid, you can call
+    // ReadDXBCAssumingValidSize
     HRESULT ReadDXBC(const void* pContainer, UINT32 ContainerSizeInBytes); 
-                                    // Sets the container to be parsed, and does some
-                                    // basic integrity checking, such as ensuring the version is:
-                                    //     Major = DXBC_MAJOR_VERSION
-                                    //     Minor = DXBC_MAJOR_VERSION
-                                    // 
-                                    // Returns S_OK, or E_FAIL
-                                    //
-                                    // Note, if you don't know ContainerSize and are willing to 
-                                    // assume your pointer pContainer is valid, you can call
-                                    // ReadDXBCAssumingValidSize
+                                    
 
-    HRESULT ReadDXBCAssumingValidSize(const void* pContainer); 
-                                    // Same as ReadDXBC(), except this assumes the size field stored inside 
-                                    // pContainer is valid.
+    // Same as ReadDXBC(), except this assumes the size field stored inside 
+    // pContainer is valid.
+    HRESULT ReadDXBCAssumingValidSize(const void* pContainer);                              
 
-    const DXBCVersion* GetVersion();              // returns NULL if no valid container is set
-    const DXBCHash* GetHash();                    // returns NULL if no valid container is set
+    // returns NULL if no valid container is set
+    const DXBCVersion* GetVersion(); 
+    // returns NULL if no valid container is set
+    const DXBCHash* GetHash();                    
     UINT32 GetBlobCount();
     const void* GetBlob(UINT32 BlobIndex);
     UINT32 GetBlobSize(UINT32 BlobIndex);
     UINT   GetBlobFourCC(UINT32 BlobIndex);
-    HRESULT RelocateBytecode(UINT_PTR ByteOffset); // fixes up internal pointers given that the original bytecode has been moved by ByteOffset bytes
+    // fixes up internal pointers given that the original bytecode has been moved by ByteOffset bytes
+    HRESULT RelocateBytecode(UINT_PTR ByteOffset); 
 #define DXBC_BLOB_NOT_FOUND -1
-    UINT32 FindNextMatchingBlob( DXBCFourCC SearchFourCC, UINT32 SearchStartBlobIndex = 0 ); // Note: search INCLUDES entry at startindex
-                                    // returns blob index if found, otherwise returns DXBC_NOT_FOUND
+    // Note: search INCLUDES entry at startindex
+    // returns blob index if found, otherwise returns DXBC_BLOB_NOT_FOUND
+    UINT32 FindNextMatchingBlob( DXBCFourCC SearchFourCC, UINT32 SearchStartBlobIndex = 0 ); 
+                                    
 private:
     const DXBCHeader*    m_pHeader;
     const UINT32*        m_pIndex;
