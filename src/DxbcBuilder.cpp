@@ -2,7 +2,6 @@
 // Licensed under the MIT License.
 #include "pch.h"
 #include "BlobContainer.h"
-#include <DxbcSigner.hpp>
 #include "DxbcBuilder.hpp"
 
 //=================================================================================================================================
@@ -189,9 +188,6 @@ HRESULT CDXBCBuilder::GetFinalDXBC(void *pCallerAllocatedMemory, UINT *pContaine
     pHeader->Version.Major = DXBC_MAJOR_VERSION;
     pHeader->Version.Minor = DXBC_MINOR_VERSION;
 
-    if (FAILED(SignDxbc((BYTE *)pCallerAllocatedMemory, pHeader->ContainerSizeInBytes)))
-    {
-        return E_FAIL;
-    }
+    //signing is left as a post processing step if needed
     return S_OK;
 }
