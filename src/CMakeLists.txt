@@ -9,6 +9,7 @@ set(SRC
 	ColorConvertHelper.cpp
 	CommandListManager.cpp
 	DeviceChild.cpp
+	DxbcBuilder.cpp
 	Fence.cpp
 	FormatDescImpl.cpp
 	ImmediateContext.cpp
@@ -40,13 +41,13 @@ set (INC
 	../include/BatchedResource.hpp
 	../include/BlitHelper.hpp
 	../include/BlitHelperShaders.h
-	../include/BlobContainer.h
 	../include/BlockAllocators.h
 	../include/CommandListManager.hpp
 	../include/D3D12TranslationLayerDependencyIncludes.h
 	../include/D3D12TranslationLayerIncludes.h
 	../include/d3dx12residency.h
 	../include/DeviceChild.hpp
+	../include/DxbcBuilder.hpp
 	../include/DXGIColorSpaceHelper.h
 	../include/Fence.hpp
 	../include/FormatDesc.hpp
@@ -91,7 +92,7 @@ target_include_directories(d3d12translationlayer
 source_group(Inlines FILES ${INL})
 source_group("Header Files\\External" FILES ${EXTERNAL_INC})
 
-target_link_libraries(d3d12translationlayer d3d12 dxcore dxgi atls)
+target_link_libraries(d3d12translationlayer d3d12 dxcore dxgi atls dxbcparser)
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../packages.config ${CMAKE_CURRENT_BINARY_DIR}/packages.config COPYONLY)
 add_library(WinPixEventRuntime INTERFACE IMPORTED GLOBAL)
@@ -124,15 +125,13 @@ if (HAS_WDK)
 	target_compile_definitions(d3d12translationlayer PUBLIC SUPPORTS_DXBC_PARSE)
 
 	add_library(d3d12translationlayer_wdk STATIC
-		DXBCUtils.cpp
 		ShaderBinary.cpp
-		BlobContainer.cpp
 		ShaderParser.cpp
         SharedResourceHelpers.cpp
-		../include/DXBCUtils.h
 		../include/ShaderBinary.h
         ../include/SharedResourceHelpers.hpp)
 	target_link_libraries(d3d12translationlayer_wdk d3d12translationlayer)
+
 else()
     message(WARNING "Only adding SDK-dependent projects.")
 endif()

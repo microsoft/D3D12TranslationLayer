@@ -2,7 +2,6 @@
 // Licensed under the MIT License.
 #include "pch.h"
 #include <dxbcutils.h>
-#include <shaderbinary.h>
 
 //---------------------------------------------------------------------------------------------------------------------------------
 // DXBCGetSizeAssumingValidPointer()
