@@ -37,5 +37,10 @@ namespace D3D12TranslationLayer
         ImmediateContext* const m_pParent;
         std::unordered_map<UINT, std::unique_ptr<BlitPipelineState>> m_spBlitPSOs;
         std::unique_ptr<InternalRootSignature> m_spRootSig;
+
+    private:
+        //pResource will be updated to point at the resolved resource if it was originally an MSAA resource
+        //subresourceIndices will be updated to reflect the resolved resource's subresource indecies if pResource was originally an MSAA resource
+        void ResolveToNonMsaaIfNeeded( _Inout_ Resource **ppResource, _Inout_ std::vector<UINT> &subresourceIndices, const RECT &srcRect );
     };
 };

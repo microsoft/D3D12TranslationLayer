@@ -163,6 +163,8 @@ namespace D3D12TranslationLayer
     void BlitHelper::Blit(Resource *pSrc, UINT *pSrcSubresourceIndices, UINT numSrcSubresources, const RECT& srcRect, Resource *pDst, UINT *pDstSubresourceIndices, UINT numDstSubresources, const RECT& dstRect, bool bEnableAlpha, bool bSwapRBChannels)
     {
         const D3D12_RESOURCE_DESC &dstDesc = pDst->GetUnderlyingResource()->GetDesc();
+        std::vector<UINT> nonMsaaSrcSubresourceIndices( pSrcSubresourceIndices, pSrcSubresourceIndices + numSrcSubresources );
+        ResolveToNonMsaaIfNeeded( &pSrc, nonMsaaSrcSubresourceIndices, srcRect );
 
         int srcPixelScalingFactor = 1;
         BlitPipelineState* pPSO = PrepareShaders(pSrc, numSrcSubresources, pDst, numDstSubresources, bEnableAlpha, bSwapRBChannels, srcPixelScalingFactor /*out argument*/);
@@ -234,7 +236,7 @@ namespace D3D12TranslationLayer
             assert(numSrcSubresources <= MAX_PLANES);
             for (UINT i = 0; i < numSrcSubresources; i++)
             {
-                UINT subresourceIndex = pSrcSubresourceIndices[i];
+                UINT subresourceIndex = nonMsaaSrcSubresourceIndices[i];
                 m_pParent->GetResourceStateManager().TransitionSubresource(pSrc, subresourceIndex, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
             }
             assert(numDstSubresources == 1);        // for now, just packed output
@@ -266,7 +268,7 @@ namespace D3D12TranslationLayer
         //
         for (UINT i = 0; i < numSrcSubresources; i++)
         {
-            UINT subresource = pSrcSubresourceIndices[i];
+            UINT subresource = nonMsaaSrcSubresourceIndices[i];
             UINT8 SrcPlane = 0, SrcMip = 0;
             UINT16 SrcArraySlice = 0;
             D3D12DecomposeSubresource(subresource, pSrc->AppDesc()->MipLevels(), pSrc->AppDesc()->ArraySize(), SrcMip, SrcArraySlice, SrcPlane);
@@ -336,7 +338,7 @@ namespace D3D12TranslationLayer
 
         // Constant buffers: srcRect, src dimensions
         {
-            UINT subresourceIndex = pSrcSubresourceIndices[0];
+            UINT subresourceIndex = nonMsaaSrcSubresourceIndices[0];
             auto& srcSubresourceFootprint = pSrc->GetSubresourcePlacement(subresourceIndex).Footprint;
             int srcPositions[6] = { srcRect.left, srcRect.right, srcRect.top, srcRect.bottom, (int)srcSubresourceFootprint.Width, (int)srcSubresourceFootprint.Height };
 
@@ -389,5 +391,24 @@ namespace D3D12TranslationLayer
         }
 
         m_pParent->PostRender(COMMAND_LIST_TYPE::GRAPHICS, e_GraphicsStateDirty);
+    }
+
+    void BlitHelper::ResolveToNonMsaaIfNeeded( _Inout_ Resource **ppResource, _Inout_ std::vector<UINT> &newSubresourceIndices, const RECT& srcRect )
+    {
+        auto pResource = *ppResource;
+        if (pResource->AppDesc()->Samples() > 1)
+        {
+            assert( newSubresourceIndices.size() <= MAX_PLANES );
+
+            auto& cacheEntry = m_pParent->GetResourceCache().GetResource( pResource->AppDesc()->Format(), RectWidth( srcRect ), RectHeight( srcRect ) );
+            auto pCacheResource = cacheEntry.m_Resource.get();
+            for (UINT i = 0; i < newSubresourceIndices.size(); i++)
+            {
+                auto cacheSubresourceIndex = pCacheResource->GetSubresourceIndex( i, 0, 0 );
+                m_pParent->ResourceResolveSubresource( pCacheResource, cacheSubresourceIndex, pResource, newSubresourceIndices[i], pResource->AppDesc()->Format() );
+                newSubresourceIndices[i] = cacheSubresourceIndex;
+            }
+            *ppResource = pCacheResource;
+        }
     }
 }
