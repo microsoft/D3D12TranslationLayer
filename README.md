@@ -17,6 +17,8 @@ In contrast, a D3D12-style application must:
 
 To that end, this library provides an implementation of an API that looks like [D3D11](https://docs.microsoft.com/en-us/windows/win32/api/_direct3d11/), and submits work to [D3D12](https://docs.microsoft.com/en-us/windows/win32/api/_direct3d12/).
 
+Make sure that you visit the [DirectX Landing Page](https://devblogs.microsoft.com/directx/landing-page/) for more resources for DirectX developers.
+
 ## Project Background
 
 This project was started during the development of Windows 10 and D3D12. The Windows graphics team has a large set of D3D11 content which was heavily utilized during design and bringup of the D3D12 runtime and driver models. In order to use that content, a mapping layer, named D3D11On12, was developed.
