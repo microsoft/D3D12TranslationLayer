@@ -163,8 +163,25 @@ namespace D3D12TranslationLayer
     void BlitHelper::Blit(Resource *pSrc, UINT *pSrcSubresourceIndices, UINT numSrcSubresources, const RECT& srcRect, Resource *pDst, UINT *pDstSubresourceIndices, UINT numDstSubresources, const RECT& dstRect, bool bEnableAlpha, bool bSwapRBChannels)
     {
         const D3D12_RESOURCE_DESC &dstDesc = pDst->GetUnderlyingResource()->GetDesc();
-        std::vector<UINT> nonMsaaSrcSubresourceIndices( pSrcSubresourceIndices, pSrcSubresourceIndices + numSrcSubresources );
-        ResolveToNonMsaaIfNeeded( &pSrc, nonMsaaSrcSubresourceIndices, srcRect );
+        assert( numSrcSubresources <= MAX_PLANES );
+        UINT nonMsaaSrcSubresourceIndices[MAX_PLANES];
+        memcpy( &nonMsaaSrcSubresourceIndices[0], pSrcSubresourceIndices, numSrcSubresources * sizeof(UINT) );
+        ResourceCacheEntry OwnedCacheEntryFromResolve;
+        auto srcFormat = pSrc->AppDesc()->Format();
+        auto dstFormat = pDst->AppDesc()->Format();
+        bool needsTempRenderTarget = (dstDesc.Flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET) == D3D12_RESOURCE_FLAG_NONE;
+        if (ResolveToNonMsaaIfNeeded( &pSrc /*inout*/, nonMsaaSrcSubresourceIndices /*inout*/, numSrcSubresources, srcRect ))
+        {
+            // We used a Cache Entry of pSrc's format to do the resolve. 
+            // If pDst uses the same format and we need a temp render target, 
+            // we should take ownership of the resource used for resolve so that
+            // a new resource can be used for the destination of the blit.
+            // This is to prevent the same resource being used for read and write (see comment block below).
+            if (srcFormat == dstFormat && needsTempRenderTarget)
+            {
+                m_pParent->GetResourceCache().TakeCacheEntryOwnership( srcFormat, OwnedCacheEntryFromResolve );
+            }
+        }
 
         int srcPixelScalingFactor = 1;
         BlitPipelineState* pPSO = PrepareShaders(pSrc, numSrcSubresources, pDst, numDstSubresources, bEnableAlpha, bSwapRBChannels, srcPixelScalingFactor /*out argument*/);
@@ -174,15 +191,14 @@ namespace D3D12TranslationLayer
         //
         // setup the RTV
         //
-        bool needsTempRenderTarget = (dstDesc.Flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET) == D3D12_RESOURCE_FLAG_NONE;
-        bool needsTwoPassColorConvert = (bSwapRBChannels && CD3D11FormatHelper::YUV(pSrc->AppDesc()->Format()));
+        bool needsTwoPassColorConvert = (bSwapRBChannels && CD3D11FormatHelper::YUV(srcFormat));
         auto pNewDestinationResource = pDst;
         RTV* pRTV = nullptr;
         std::optional<RTV> LocalRTV;
         ResourceCacheEntry OwnedCacheEntry;
         if (needsTempRenderTarget || needsTwoPassColorConvert)
         {
-            auto& CacheEntry = m_pParent->GetResourceCache().GetResource(pDst->AppDesc()->Format(),
+            auto& CacheEntry = m_pParent->GetResourceCache().GetResource(dstFormat,
                 RectWidth(dstRect),
                 RectHeight(dstRect));
             pNewDestinationResource = CacheEntry.m_Resource.get();
@@ -199,7 +215,7 @@ namespace D3D12TranslationLayer
                 // To prevent this, take ownership of the cache entry during pass one, so that pass two
                 // allocates a new resource. The resource from pass one will then be destroyed rather than
                 // being cached... but this seems okay since this should be *very* uncommon
-                m_pParent->GetResourceCache().TakeCacheEntryOwnership(pDst->AppDesc()->Format(), OwnedCacheEntry);
+                m_pParent->GetResourceCache().TakeCacheEntryOwnership(dstFormat, OwnedCacheEntry);
             }
         }
         else
@@ -233,7 +249,6 @@ namespace D3D12TranslationLayer
         // Transition the src & dst resources
         //
         {
-            assert(numSrcSubresources <= MAX_PLANES);
             for (UINT i = 0; i < numSrcSubresources; i++)
             {
                 UINT subresourceIndex = nonMsaaSrcSubresourceIndices[i];
@@ -393,22 +408,25 @@ namespace D3D12TranslationLayer
         m_pParent->PostRender(COMMAND_LIST_TYPE::GRAPHICS, e_GraphicsStateDirty);
     }
 
-    void BlitHelper::ResolveToNonMsaaIfNeeded( _Inout_ Resource **ppResource, _Inout_ std::vector<UINT> &newSubresourceIndices, const RECT& srcRect )
+    bool BlitHelper::ResolveToNonMsaaIfNeeded( _Inout_ Resource **ppResource, _Inout_ UINT* pSubresourceIndices, UINT numSubresources, const RECT& srcRect )
     {
         auto pResource = *ppResource;
         if (pResource->AppDesc()->Samples() > 1)
         {
-            assert( newSubresourceIndices.size() <= MAX_PLANES );
+            assert( numSubresources == 1 ); // assert that it's only 1 because you can't have MSAA YUV resources.
 
             auto& cacheEntry = m_pParent->GetResourceCache().GetResource( pResource->AppDesc()->Format(), RectWidth( srcRect ), RectHeight( srcRect ) );
             auto pCacheResource = cacheEntry.m_Resource.get();
-            for (UINT i = 0; i < newSubresourceIndices.size(); i++)
+            for (UINT i = 0; i < numSubresources; i++)
             {
                 auto cacheSubresourceIndex = pCacheResource->GetSubresourceIndex( i, 0, 0 );
-                m_pParent->ResourceResolveSubresource( pCacheResource, cacheSubresourceIndex, pResource, newSubresourceIndices[i], pResource->AppDesc()->Format() );
-                newSubresourceIndices[i] = cacheSubresourceIndex;
+                m_pParent->ResourceResolveSubresource( pCacheResource, cacheSubresourceIndex, pResource, pSubresourceIndices[i], pResource->AppDesc()->Format() );
+                pSubresourceIndices[i] = cacheSubresourceIndex;
             }
             *ppResource = pCacheResource;
+
+            return true;
         }
+        return false;
     }
 }

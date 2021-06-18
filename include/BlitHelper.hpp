@@ -39,8 +39,9 @@ namespace D3D12TranslationLayer
         std::unique_ptr<InternalRootSignature> m_spRootSig;
 
     private:
-        //pResource will be updated to point at the resolved resource if it was originally an MSAA resource
-        //subresourceIndices will be updated to reflect the resolved resource's subresource indecies if pResource was originally an MSAA resource
-        void ResolveToNonMsaaIfNeeded( _Inout_ Resource **ppResource, _Inout_ std::vector<UINT> &subresourceIndices, const RECT &srcRect );
+        //@param ppResource: will be updated to point at the resolved resource if it was originally an MSAA resource
+        //@param pSubresourceIndices: will be updated to reflect the resolved resource's subresource indecies if pResource was originally an MSAA resource
+        //@return True if a resolve was performed
+        bool ResolveToNonMsaaIfNeeded( _Inout_ Resource **ppResource, UINT* pSubresourceIndices, UINT numSubresources, const RECT &srcRect );
     };
 };
