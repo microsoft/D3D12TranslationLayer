@@ -170,8 +170,14 @@ namespace D3D12TranslationLayer
         auto srcFormat = pSrc->AppDesc()->Format();
         auto dstFormat = pDst->AppDesc()->Format();
         bool needsTempRenderTarget = (dstDesc.Flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET) == D3D12_RESOURCE_FLAG_NONE;
-        if (ResolveToNonMsaaIfNeeded( &pSrc /*inout*/, nonMsaaSrcSubresourceIndices /*inout*/, numSrcSubresources, srcRect ))
+        bool needsTwoPassColorConvert = (bSwapRBChannels && CD3D11FormatHelper::YUV( srcFormat ));
+
+        //If the src is MSAA, resolve to non-MSAA
+        if (pSrc->AppDesc()->Samples() > 1)
         {
+            assert( !needsTwoPassColorConvert ); //Can't have MSAA YUV resources, so this should be false
+            ResolveToNonMsaa( &pSrc /*inout*/, nonMsaaSrcSubresourceIndices /*inout*/, numSrcSubresources, srcRect );
+
             // We used a Cache Entry of pSrc's format to do the resolve. 
             // If pDst uses the same format and we need a temp render target, 
             // we should take ownership of the resource used for resolve so that
@@ -191,7 +197,6 @@ namespace D3D12TranslationLayer
         //
         // setup the RTV
         //
-        bool needsTwoPassColorConvert = (bSwapRBChannels && CD3D11FormatHelper::YUV(srcFormat));
         auto pNewDestinationResource = pDst;
         RTV* pRTV = nullptr;
         std::optional<RTV> LocalRTV;
@@ -408,25 +413,19 @@ namespace D3D12TranslationLayer
         m_pParent->PostRender(COMMAND_LIST_TYPE::GRAPHICS, e_GraphicsStateDirty);
     }
 
-    bool BlitHelper::ResolveToNonMsaaIfNeeded( _Inout_ Resource **ppResource, _Inout_ UINT* pSubresourceIndices, UINT numSubresources, const RECT& srcRect )
+    void BlitHelper::ResolveToNonMsaa( _Inout_ Resource **ppResource, _Inout_ UINT* pSubresourceIndices, UINT numSubresources, const RECT& srcRect )
     {
         auto pResource = *ppResource;
-        if (pResource->AppDesc()->Samples() > 1)
+        assert( numSubresources == 1 ); // assert that it's only 1 because you can't have MSAA YUV resources.
+
+        auto& cacheEntry = m_pParent->GetResourceCache().GetResource( pResource->AppDesc()->Format(), RectWidth( srcRect ), RectHeight( srcRect ) );
+        auto pCacheResource = cacheEntry.m_Resource.get();
+        for (UINT i = 0; i < numSubresources; i++)
         {
-            assert( numSubresources == 1 ); // assert that it's only 1 because you can't have MSAA YUV resources.
-
-            auto& cacheEntry = m_pParent->GetResourceCache().GetResource( pResource->AppDesc()->Format(), RectWidth( srcRect ), RectHeight( srcRect ) );
-            auto pCacheResource = cacheEntry.m_Resource.get();
-            for (UINT i = 0; i < numSubresources; i++)
-            {
-                auto cacheSubresourceIndex = pCacheResource->GetSubresourceIndex( i, 0, 0 );
-                m_pParent->ResourceResolveSubresource( pCacheResource, cacheSubresourceIndex, pResource, pSubresourceIndices[i], pResource->AppDesc()->Format() );
-                pSubresourceIndices[i] = cacheSubresourceIndex;
-            }
-            *ppResource = pCacheResource;
-
-            return true;
+            auto cacheSubresourceIndex = pCacheResource->GetSubresourceIndex( i, 0, 0 );
+            m_pParent->ResourceResolveSubresource( pCacheResource, cacheSubresourceIndex, pResource, pSubresourceIndices[i], pResource->AppDesc()->Format() );
+            pSubresourceIndices[i] = cacheSubresourceIndex;
         }
-        return false;
+        *ppResource = pCacheResource;
     }
 }
