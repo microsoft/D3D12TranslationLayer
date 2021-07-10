@@ -104,9 +104,9 @@ inline segmented_stack< T, segment_size, unary >::segmented_stack(const unary& n
 template< class T, size_t segment_size, typename unary >
 inline void segmented_stack< T, segment_size, unary >::free()
 {
-    for (segment_vector::iterator segment = m_segments.begin(); segment != m_segments.end(); ++segment)
+    for (auto segment = m_segments.begin(); segment != m_segments.end(); ++segment)
     {
-        for (segment_range::iterator it = segment->m_begin; it != segment->m_end; ++it)
+        for (auto it = segment->m_begin; it != segment->m_end; ++it)
         {
             it->~T();
         }
@@ -324,9 +324,9 @@ inline void segmented_stack< T, segment_size, unary >::swap(segmented_stack< T, 
 template< class T, size_t segment_size, typename unary >
 inline void segmented_stack< T, segment_size, unary >::clear()
 {
-    for (segment_vector::iterator segment = m_segments.begin(); segment != m_segments.end(); ++segment)
+    for (auto segment = m_segments.begin(); segment != m_segments.end(); ++segment)
     {
-        for (segment_range::iterator it = segment->m_begin; it != segment->m_end; ++it)
+        for (auto it = segment->m_begin; it != segment->m_end; ++it)
         {
             it->~T();
         }

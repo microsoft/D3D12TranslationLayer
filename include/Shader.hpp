@@ -2,6 +2,8 @@
 // Licensed under the MIT License.
 #pragma once
 
+#include "DeviceChild.hpp"
+
 namespace D3D12TranslationLayer
 {
     enum class RESOURCE_DIMENSION

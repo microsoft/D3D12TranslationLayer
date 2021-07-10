@@ -2,8 +2,17 @@
 // Licensed under the MIT License.
 #pragma once
 
+#include "ResourceState.hpp"
+
 namespace D3D12TranslationLayer
 {
+    enum class ShaderResourceViewType;
+    enum class RenderTargetViewType;
+    enum class DepthStencilViewType;
+    enum class UnorderedAccessViewType;
+    enum class VideoDecoderOutputViewType;
+    enum class VideoProcessorInputViewType;
+    enum class VideoProcessorOutputViewType;
 
     // The same as D3D11
     enum RESOURCE_USAGE

@@ -105,7 +105,7 @@ public:
     // Required Allocator functions
     _BlockType Allocate(_SizeType size);
     void Deallocate(const _BlockType &block);
-    bool IsOwner(const _BlockType &block) const { return block.GetSize() == blockSize; }
+    bool IsOwner(const _BlockType &block) const { return block.GetSize() == m_blockSize; }
     void Reset();
 };
 
