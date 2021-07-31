@@ -109,6 +109,7 @@ int main() {
 }" HAVE_DXCORE_LIBRARY)
 if (HAVE_DXCORE_LIBRARY)
 	target_link_libraries(d3d12translationlayer dxcore)
+	target_link_options(d3d12translationlayer INTERFACE "/DELAYLOAD:dxcore.dll")
 else()
 	target_compile_definitions(d3d12translationlayer PRIVATE DYNAMIC_LOAD_DXCORE=1)
 endif()
