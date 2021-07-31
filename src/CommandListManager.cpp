@@ -38,7 +38,6 @@ namespace D3D12TranslationLayer
             queue.NodeMask = m_pParent->GetNodeMask();
             queue.Flags = m_pParent->m_CreationArgs.DisableGPUTimeout ?
                 D3D12_COMMAND_QUEUE_FLAG_DISABLE_GPU_TIMEOUT : D3D12_COMMAND_QUEUE_FLAG_NONE;
-#ifdef __ID3D12Device9_INTERFACE_DEFINED__
             CComPtr<ID3D12Device9> spDevice9;
             if (SUCCEEDED(m_pParent->m_pDevice12->QueryInterface(&spDevice9)))
             {
@@ -46,11 +45,8 @@ namespace D3D12TranslationLayer
             }
             else
             {
-#endif
                 ThrowFailure(m_pParent->m_pDevice12->CreateCommandQueue(&queue, IID_PPV_ARGS(&m_pCommandQueue)));
-#ifdef __ID3D12Device9_INTERFACE_DEFINED__
             }
-#endif
         }
 
         PrepareNewCommandList();
