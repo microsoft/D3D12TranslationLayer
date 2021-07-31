@@ -88,6 +88,10 @@ target_include_directories(d3d12translationlayer
     PUBLIC ../external
     PUBLIC ../include
     PRIVATE ./)
+
+if (CMAKE_VERSION VERSION_GREATER 3.16)
+	target_precompile_headers(d3d12translationlayer PRIVATE ../include/pch.h)
+endif()
     
 source_group(Inlines FILES ${INL})
 source_group("Header Files\\External" FILES ${EXTERNAL_INC})
