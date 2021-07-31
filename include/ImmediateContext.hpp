@@ -801,6 +801,9 @@ public:
     // D3D12 objects
     // TODO: const
     const unique_comptr<ID3D12Device> m_pDevice12;
+#if DYNAMIC_LOAD_DXCORE
+    XPlatHelpers::unique_module m_DXCore;
+#endif
     unique_comptr<IDXCoreAdapter> m_pDXCoreAdapter;
     unique_comptr<IDXGIAdapter3> m_pDXGIAdapter;
     unique_comptr<ID3D12Device1> m_pDevice12_1;
