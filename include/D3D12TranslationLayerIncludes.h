@@ -18,6 +18,7 @@
 
 #include <BlockAllocators.h>
 #include "Allocator.h"
+#include "XPlatHelpers.h"
 
 #include <ThreadPool.hpp>
 #include <segmented_stack.h>

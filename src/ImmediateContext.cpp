@@ -134,7 +134,13 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
     LUID adapterLUID = pDevice->GetAdapterLuid();
     {
         CComPtr<IDXCoreAdapterFactory> pFactory;
+#if DYNAMIC_LOAD_DXCORE
+        m_DXCore.load("dxcore");
+        auto pfnDXCoreCreateAdapterFactory = m_DXCore.proc_address<HRESULT(APIENTRY*)(REFIID, void**)>("DXCoreCreateAdapterFactory");
+        if (m_DXCore && pfnDXCoreCreateAdapterFactory && SUCCEEDED(pfnDXCoreCreateAdapterFactory(IID_PPV_ARGS(&pFactory))))
+#else
         if (SUCCEEDED(DXCoreCreateAdapterFactory(IID_PPV_ARGS(&pFactory))))
+#endif
         {
             (void)pFactory->GetAdapterByLuid(adapterLUID, IID_PPV_ARGS(&m_pDXCoreAdapter));
         }

@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 cmake_minimum_required(VERSION 3.13)
+include(CheckCXXSourceCompiles)
 
 set(SRC
 	Allocator.cpp
@@ -88,11 +89,30 @@ target_include_directories(d3d12translationlayer
     PUBLIC ../external
     PUBLIC ../include
     PRIVATE ./)
+
+if (CMAKE_VERSION VERSION_GREATER 3.16)
+	target_precompile_headers(d3d12translationlayer PRIVATE ../include/pch.h)
+endif()
     
 source_group(Inlines FILES ${INL})
 source_group("Header Files\\External" FILES ${EXTERNAL_INC})
 
-target_link_libraries(d3d12translationlayer d3d12 dxcore dxgi atls dxbcparser)
+target_link_libraries(d3d12translationlayer Microsoft::DirectX-Headers d3d12 dxgi atls dxbcparser)
+
+# Using a compile test instead of find_library so this doesn't have to be run from a VS command prompt
+check_cxx_source_compiles("
+#pragma comment(lib, \"dxcore.lib\")
+#include <dxcore.h>
+int main() {
+	IDXCoreAdapterFactory *fac;
+	return DXCoreCreateAdapterFactory(&fac);
+}" HAVE_DXCORE_LIBRARY)
+if (HAVE_DXCORE_LIBRARY)
+	target_link_libraries(d3d12translationlayer dxcore)
+	target_link_options(d3d12translationlayer INTERFACE "/DELAYLOAD:dxcore.dll")
+else()
+	target_compile_definitions(d3d12translationlayer PRIVATE DYNAMIC_LOAD_DXCORE=1)
+endif()
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../packages.config ${CMAKE_CURRENT_BINARY_DIR}/packages.config COPYONLY)
 add_library(WinPixEventRuntime INTERFACE IMPORTED GLOBAL)
