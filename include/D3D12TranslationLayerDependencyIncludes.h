@@ -11,11 +11,15 @@
 
 //SDK Headers
 #define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
 #define _ATL_NO_WIN_SUPPORT
 #include <windows.h>
 #include <atlbase.h>
 #include <comdef.h>
 #include <strsafe.h>
+
+// This defines NTSTATUS and other types that are needed for kernel headers
+#include <wincrypt.h>
 
 #define INITGUID
 #include <guiddef.h>
