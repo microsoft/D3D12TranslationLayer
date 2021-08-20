@@ -41,6 +41,6 @@ namespace D3D12TranslationLayer
     private:
         //@param ppResource: will be updated to point at the resolved resource
         //@param pSubresourceIndices: will be updated to reflect the resolved resource's subresource indecies
-        void ResolveToNonMsaa( _Inout_ Resource **ppResource, _Inout_ UINT* pSubresourceIndices, UINT numSubresources, const RECT &srcRect );
+        void ResolveToNonMsaa( _Inout_ Resource **ppResource, _Inout_ UINT* pSubresourceIndices, UINT numSubresources );
     };
 };
