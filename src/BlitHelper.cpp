@@ -176,7 +176,7 @@ namespace D3D12TranslationLayer
         if (pSrc->AppDesc()->Samples() > 1)
         {
             assert( !needsTwoPassColorConvert ); //Can't have MSAA YUV resources, so this should be false
-            ResolveToNonMsaa( &pSrc /*inout*/, nonMsaaSrcSubresourceIndices /*inout*/, numSrcSubresources, srcRect );
+            ResolveToNonMsaa( &pSrc /*inout*/, nonMsaaSrcSubresourceIndices /*inout*/, numSrcSubresources );
 
             // We used a Cache Entry of pSrc's format to do the resolve. 
             // If pDst uses the same format and we need a temp render target, 
@@ -413,12 +413,15 @@ namespace D3D12TranslationLayer
         m_pParent->PostRender(COMMAND_LIST_TYPE::GRAPHICS, e_GraphicsStateDirty);
     }
 
-    void BlitHelper::ResolveToNonMsaa( _Inout_ Resource **ppResource, _Inout_ UINT* pSubresourceIndices, UINT numSubresources, const RECT& srcRect )
+    void BlitHelper::ResolveToNonMsaa( _Inout_ Resource **ppResource, _Inout_ UINT* pSubresourceIndices, UINT numSubresources )
     {
         auto pResource = *ppResource;
         assert( numSubresources == 1 ); // assert that it's only 1 because you can't have MSAA YUV resources.
 
-        auto& cacheEntry = m_pParent->GetResourceCache().GetResource( pResource->AppDesc()->Format(), RectWidth( srcRect ), RectHeight( srcRect ) );
+        auto srcDesc = pResource->GetUnderlyingResource()->GetDesc();
+        UINT width = static_cast<UINT>(srcDesc.Width);
+        UINT height = static_cast<UINT>(srcDesc.Height);
+        auto& cacheEntry = m_pParent->GetResourceCache().GetResource( pResource->AppDesc()->Format(), width, height );
         auto pCacheResource = cacheEntry.m_Resource.get();
         for (UINT i = 0; i < numSubresources; i++)
         {
