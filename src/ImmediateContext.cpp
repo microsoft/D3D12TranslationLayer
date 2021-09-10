@@ -4289,8 +4289,8 @@ bool TRANSLATION_API ImmediateContext::MapDynamicTexture(Resource* pResource, UI
     // in order to copy the GPU data to a readback heap. As a result the first call to map will initiate the copy
     // and return that a draw is still in flight. The next map that's called after the copy is finished will
     // succeed.
-    bool bReadbackCopyInFlight = pResource->GetCurrentCpuHeap(Subresource) != nullptr && 
-        pResource->GetDynamicTextureData(Subresource).m_MappedPlaneMask == 0;
+    bool bReadbackCopyInFlight = pResource->GetCurrentCpuHeap(Subresource) != nullptr &&
+        !pResource->GetDynamicTextureData(Subresource).AnyPlaneMapped();
     if (bReadbackCopyInFlight)
     {
         // If an app modifies the resource after a readback copy has been initiated but not mapped again,
@@ -4315,8 +4315,7 @@ bool TRANSLATION_API ImmediateContext::MapDynamicTexture(Resource* pResource, UI
 
     // For planar textures, the upload buffer is created for all planes when all planes
     // were previously not mapped
-    if (pResource->Parent()->ResourceDimension12() == D3D12_RESOURCE_DIMENSION_BUFFER ||
-        pResource->GetDynamicTextureData(Subresource).m_MappedPlaneMask == 0)
+    if (!pResource->GetDynamicTextureData(Subresource).AnyPlaneMapped())
     {
         if (!bReadbackCopyInFlight)
         {
@@ -4382,20 +4381,15 @@ bool TRANSLATION_API ImmediateContext::MapDynamicTexture(Resource* pResource, UI
         assert(pRenameResource->AppDesc()->MipLevels() == 1);
         assert(pRenameResource->AppDesc()->ArraySize() == 1);
 
-        if (!MapUnderlyingSynchronize(pRenameResource, PlaneIndex, MapType, DoNotWait, pReadWriteRange, pMap))
+        if (!MapUnderlyingSynchronize(pRenameResource, Subresource, MapType, DoNotWait, pReadWriteRange, pMap))
         {
             return false;
         }
     }
 
-    if (pResource->Parent()->ResourceDimension12() != D3D12_RESOURCE_DIMENSION_BUFFER)
-    {
-        // Record that the given plane was mapped and is now dirty
-        assert((pResource->GetDynamicTextureData(Subresource).m_MappedPlaneMask & (1 << PlaneIndex)) == 0);
-        pResource->GetDynamicTextureData(Subresource).m_MappedPlaneMask |= (1 << PlaneIndex);
-        pResource->GetDynamicTextureData(Subresource).m_DirtyPlaneMask |= (1 << PlaneIndex);
-
-    }
+    // Record that the given plane was mapped and is now dirty
+    pResource->GetDynamicTextureData(Subresource).m_MappedPlaneRefCount[PlaneIndex]++;
+    pResource->GetDynamicTextureData(Subresource).m_DirtyPlaneMask |= (1 << PlaneIndex);
 
     return true;
 }
@@ -4984,29 +4978,21 @@ void TRANSLATION_API ImmediateContext::UnmapDynamicTexture(Resource* pResource, 
     Resource* pRenameResource = pResource->GetCurrentCpuHeap(Subresource);
 
     // If multiple planes of the dynamic texture were mapped simultaneously, only copy
-    // data from the upload buffer once all planes have been unmapped.    
-    if (pResource->Parent()->ResourceDimension12() != D3D12_RESOURCE_DIMENSION_BUFFER)
+    // data from the upload buffer once all planes have been unmapped.
+    assert(pResource->GetDynamicTextureData(Subresource).m_MappedPlaneRefCount[PlaneIndex] > 0);
+    pResource->GetDynamicTextureData(Subresource).m_MappedPlaneRefCount[PlaneIndex]--;
+    if (bUploadMappedContents)
     {
-        assert(pResource->GetDynamicTextureData(Subresource).m_MappedPlaneMask & (1 << PlaneIndex));
-        pResource->GetDynamicTextureData(Subresource).m_MappedPlaneMask &= ~(1 << PlaneIndex);
-
-        if (bUploadMappedContents)
-        {
-            UnmapUnderlyingStaging(pRenameResource, PlaneIndex, pReadWriteRange);
-        }
-        else
-        {
-            UnmapUnderlyingSimple(pRenameResource, PlaneIndex, pReadWriteRange);
-        }
-
-        if (pResource->GetDynamicTextureData(Subresource).m_MappedPlaneMask != 0)
-        {
-            return;
-        }
+        UnmapUnderlyingStaging(pRenameResource, Subresource, pReadWriteRange);
     }
     else
     {
-        UnmapUnderlyingSimple(pRenameResource, PlaneIndex, pReadWriteRange);
+        UnmapUnderlyingSimple(pRenameResource, Subresource, pReadWriteRange);
+    }
+
+    if (pResource->GetDynamicTextureData(Subresource).AnyPlaneMapped())
+    {
+        return;
     }
 
     if(bUploadMappedContents)
