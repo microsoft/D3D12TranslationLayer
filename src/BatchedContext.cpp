@@ -1195,7 +1195,7 @@ bool TRANSLATION_API BatchedContext::MapForRenameViaCopy(BatchedResource* pResou
         pResource->m_pResource->DecomposeSubresource(Subresource, MipIndex, ArrayIndex, PlaneIndex);
         auto& ImmCtx = GetImmediateContextNoFlush();
 
-        if (pResource->m_DynamicTexturePlaneData.m_MappedPlaneMask == 0)
+        if (!pResource->m_DynamicTexturePlaneData.AnyPlaneMapped())
         {
             SafeRenameResourceCookie cookie(ImmCtx, ImmCtx.CreateRenameCookie(pResource->m_pResource, ResourceAllocationContext::FreeThread));
 
@@ -1205,7 +1205,7 @@ bool TRANSLATION_API BatchedContext::MapForRenameViaCopy(BatchedResource* pResou
             pResource->m_PendingRenameViaCopyCookie.Reset(cookie.Detach());
         }
 
-        pResource->m_DynamicTexturePlaneData.m_MappedPlaneMask |= (1 << PlaneIndex);
+        pResource->m_DynamicTexturePlaneData.m_MappedPlaneRefCount[PlaneIndex]++;
         pResource->m_DynamicTexturePlaneData.m_DirtyPlaneMask |= (1 << PlaneIndex);
 
         D3D12_RANGE ReadRange = CD3DX12_RANGE(0, 0);
@@ -1273,8 +1273,9 @@ void TRANSLATION_API BatchedContext::UnmapAndRenameViaCopy(BatchedResource* pRes
     UINT MipIndex, PlaneIndex, ArrayIndex;
     pResource->m_pResource->DecomposeSubresource(Subresource, MipIndex, ArrayIndex, PlaneIndex);
 
-    pResource->m_DynamicTexturePlaneData.m_MappedPlaneMask &= ~(1 << PlaneIndex);
-    if (pResource->m_DynamicTexturePlaneData.m_MappedPlaneMask == 0)
+    assert(pResource->m_DynamicTexturePlaneData.m_MappedPlaneRefCount[PlaneIndex] == 1);
+    pResource->m_DynamicTexturePlaneData.m_MappedPlaneRefCount[PlaneIndex]--;
+    if (!pResource->m_DynamicTexturePlaneData.AnyPlaneMapped())
     {
         D3D12_RANGE WriteRange = pReadWriteRange
             ? CD3DX12_RANGE(pReadWriteRange->left, pReadWriteRange->right)

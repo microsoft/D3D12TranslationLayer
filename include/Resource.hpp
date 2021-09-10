@@ -882,10 +882,10 @@ namespace D3D12TranslationLayer
         // to Map and Unmap.
         struct DynamicTexturePlaneData
         {
-            DynamicTexturePlaneData() :m_MappedPlaneMask(0), m_DirtyPlaneMask(0) {}
+            UINT8 m_MappedPlaneRefCount[3] = {};
+            UINT8 m_DirtyPlaneMask = 0;
 
-            UINT m_MappedPlaneMask : 4;
-            UINT m_DirtyPlaneMask : 4;
+            bool AnyPlaneMapped() const { return (*reinterpret_cast<const UINT32*>(this) & 0xffffff) != 0; }
         };
 
         PreallocatedArray<DynamicTexturePlaneData> m_DynamicTexturePlaneData;
