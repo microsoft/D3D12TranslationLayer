@@ -4381,7 +4381,7 @@ bool TRANSLATION_API ImmediateContext::MapDynamicTexture(Resource* pResource, UI
         assert(pRenameResource->AppDesc()->MipLevels() == 1);
         assert(pRenameResource->AppDesc()->ArraySize() == 1);
 
-        if (!MapUnderlyingSynchronize(pRenameResource, Subresource, MapType, DoNotWait, pReadWriteRange, pMap))
+        if (!MapUnderlyingSynchronize(pRenameResource, PlaneIndex, MapType, DoNotWait, pReadWriteRange, pMap))
         {
             return false;
         }
