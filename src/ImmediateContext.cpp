@@ -4983,11 +4983,11 @@ void TRANSLATION_API ImmediateContext::UnmapDynamicTexture(Resource* pResource, 
     pResource->GetDynamicTextureData(Subresource).m_MappedPlaneRefCount[PlaneIndex]--;
     if (bUploadMappedContents)
     {
-        UnmapUnderlyingStaging(pRenameResource, Subresource, pReadWriteRange);
+        UnmapUnderlyingStaging(pRenameResource, PlaneIndex, pReadWriteRange);
     }
     else
     {
-        UnmapUnderlyingSimple(pRenameResource, Subresource, pReadWriteRange);
+        UnmapUnderlyingSimple(pRenameResource, PlaneIndex, pReadWriteRange);
     }
 
     if (pResource->GetDynamicTextureData(Subresource).AnyPlaneMapped())
