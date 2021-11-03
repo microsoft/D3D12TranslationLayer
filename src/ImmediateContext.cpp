@@ -4054,15 +4054,39 @@ bool ImmediateContext::ResourceAllocationFallback(ResourceAllocationContext thre
             }
         }
     };
+
+    //If index == 0 we are checking for object deletion, else subobject deletion
+    auto WasMemoryFreed = [&](int index) -> bool {
+        // DeferredDeletionQueueManager::TrimDeletedObjects() is the only place where we pop() 
+        // items from the deletion queues. This means that, if the sync points are different after
+        // the WaitForSyncPoint call, we must have called TrimDeletedObjects and freed some memory. 
+        UINT64 newSyncPoint[(UINT)COMMAND_LIST_TYPE::MAX_VALID];
+        auto DeletionManagerLocked = m_DeferredDeletionQueueManager.GetLocked();
+        bool newSyncPointExists = false;
+        if (index == 0) {
+            newSyncPointExists = DeletionManagerLocked->GetFenceValuesForObjectDeletion(newSyncPoint);
+        }
+        else {
+            newSyncPointExists = DeletionManagerLocked->GetFenceValuesForSuballocationDeletion(newSyncPoint);
+        }
+        constexpr size_t numBytes = sizeof(UINT64) * (size_t)COMMAND_LIST_TYPE::MAX_VALID;
+        return !newSyncPointExists || memcmp(&SyncPoints[index], &newSyncPoint, numBytes);
+    };
+
+    bool freedMemory = false;
     if (SyncPointExists[0])
     {
         WaitForSyncPoint(SyncPoints[0]);
+        freedMemory = WasMemoryFreed(0);
     }
     if (SyncPointExists[1])
     {
         WaitForSyncPoint(SyncPoints[1]);
+        freedMemory |= WasMemoryFreed(1);
     }
-    return TrimDeletedObjects();
+
+    // If we've already freed up memory go ahead and return true, else try to Trim now and return that result
+    return freedMemory || TrimDeletedObjects();
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
