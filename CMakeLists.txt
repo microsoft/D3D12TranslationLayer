@@ -15,5 +15,9 @@ FetchContent_MakeAvailable(DirectX-Headers)
 
 option(USE_PIX "Enable the use of PIX markers" ON)
 
-add_subdirectory(DxbcParser)
 add_subdirectory(src)
+
+if (HAS_WDK)
+    add_subdirectory(DxbcParser)
+    target_link_libraries(d3d12translationlayer dxbcparser)
+endif()

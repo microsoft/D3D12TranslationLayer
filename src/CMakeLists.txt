@@ -10,7 +10,6 @@ set(SRC
 	ColorConvertHelper.cpp
 	CommandListManager.cpp
 	DeviceChild.cpp
-	DxbcBuilder.cpp
 	Fence.cpp
 	FormatDescImpl.cpp
 	ImmediateContext.cpp
@@ -48,7 +47,6 @@ set (INC
 	../include/D3D12TranslationLayerIncludes.h
 	../include/d3dx12residency.h
 	../include/DeviceChild.hpp
-	../include/DxbcBuilder.hpp
 	../include/DXGIColorSpaceHelper.h
 	../include/Fence.hpp
 	../include/FormatDesc.hpp
@@ -97,7 +95,7 @@ endif()
 source_group(Inlines FILES ${INL})
 source_group("Header Files\\External" FILES ${EXTERNAL_INC})
 
-target_link_libraries(d3d12translationlayer Microsoft::DirectX-Headers d3d12 dxgi atls dxbcparser)
+target_link_libraries(d3d12translationlayer Microsoft::DirectX-Headers d3d12 dxgi atls)
 
 # Using a compile test instead of find_library so this doesn't have to be run from a VS command prompt
 check_cxx_source_compiles("
@@ -145,9 +143,11 @@ if (HAS_WDK)
 	target_compile_definitions(d3d12translationlayer PUBLIC SUPPORTS_DXBC_PARSE)
 
 	add_library(d3d12translationlayer_wdk STATIC
+		DxbcBuilder.cpp
 		ShaderBinary.cpp
 		ShaderParser.cpp
         SharedResourceHelpers.cpp
+		../include/DxbcBuilder.hpp
 		../include/ShaderBinary.h
         ../include/SharedResourceHelpers.hpp)
 	target_link_libraries(d3d12translationlayer_wdk d3d12translationlayer)
