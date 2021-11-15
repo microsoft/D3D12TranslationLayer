@@ -491,6 +491,20 @@ inline void ImmediateContext::InsertUAVBarriersIfNeeded(CViewBoundState<UAV, D3D
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
+inline void ImmediateContext::CopyDescriptorsSimpleHelper(
+    OnlineDescriptorHeap& heap,
+    _Inout_ UINT& HeapSlot,
+    const UINT numDescriptors,
+    const D3D12_CPU_DESCRIPTOR_HANDLE* pSrcDescriptorHandles)
+{
+    for (UINT i = 0; i < numDescriptors; i++) {
+        D3D12_CPU_DESCRIPTOR_HANDLE destCpuHandle = heap.CPUHandle(HeapSlot);
+        m_pDevice12->CopyDescriptorsSimple(1, destCpuHandle, pSrcDescriptorHandles[i], heap.m_Desc.Type);
+        HeapSlot++;
+    }
+}
+
+//----------------------------------------------------------------------------------------------------------------------------------
 inline void ImmediateContext::PreDraw() noexcept(false)
 {
     PIXScopedEvent(GetGraphicsCommandList(), 0ull, L"PreDraw");
@@ -648,13 +662,7 @@ inline void ImmediateContext::PreDraw() noexcept(false)
             UAVBindings.FillDescriptors(UAVDescriptors, m_NullUAVs, RootSigDesc.GetUAVBindingCount());
 
             UAVTableBase = m_ViewHeap.GPUHandle(ViewHeapSlot);
-            D3D12_CPU_DESCRIPTOR_HANDLE UAVTableBaseCPU = m_ViewHeap.CPUHandle(ViewHeapSlot);
-
-            m_pDevice12->CopyDescriptors(1, &UAVTableBaseCPU, &numUAVs,
-                numUAVs, UAVDescriptors, nullptr /*sizes*/,
-                m_ViewHeap.m_Desc.Type);
-
-            ViewHeapSlot += numUAVs;
+            CopyDescriptorsSimpleHelper(m_ViewHeap, /*inout*/ ViewHeapSlot, numUAVs, UAVDescriptors);
         }
     }
 
@@ -846,13 +854,7 @@ inline void ImmediateContext::DirtyShaderResourcesHelper(UINT& HeapSlot) noexcep
     SRVBindings.FillDescriptors(Descriptors, m_NullSRVs, RootSigHWM);
 
     CurrentState.m_SRVTableBase = m_ViewHeap.GPUHandle(HeapSlot);
-    D3D12_CPU_DESCRIPTOR_HANDLE SRVTableBaseCPU = m_ViewHeap.CPUHandle(HeapSlot);
-
-    m_pDevice12->CopyDescriptors(1, &SRVTableBaseCPU, &numSRVs,
-        numSRVs, Descriptors, nullptr /*sizes*/,
-        m_ViewHeap.m_Desc.Type);
-
-    HeapSlot += numSRVs;
+    CopyDescriptorsSimpleHelper(m_ViewHeap, /*inout*/ HeapSlot, numSRVs, Descriptors);
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
@@ -912,13 +914,7 @@ inline void ImmediateContext::DirtySamplersHelper(UINT& HeapSlot) noexcept
     SamplerBindings.FillDescriptors(Descriptors, &m_NullSampler, RootSigHWM);
 
     CurrentState.m_SamplerTableBase = m_SamplerHeap.GPUHandle(HeapSlot);
-    D3D12_CPU_DESCRIPTOR_HANDLE SamplerTableBaseCPU = m_SamplerHeap.CPUHandle(HeapSlot);
-
-    m_pDevice12->CopyDescriptors(1, &SamplerTableBaseCPU, &numSamplers,
-        numSamplers, Descriptors, nullptr /*sizes*/,
-        m_SamplerHeap.m_Desc.Type);
-
-    HeapSlot += numSamplers;
+    CopyDescriptorsSimpleHelper(m_SamplerHeap, /*inout*/ HeapSlot, numSamplers, Descriptors);
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
@@ -1164,13 +1160,7 @@ inline void ImmediateContext::PreDispatch() noexcept(false)
             UAVBindings.FillDescriptors(UAVDescriptors, m_NullUAVs, RootSigDesc.GetUAVBindingCount());
 
             UAVTableBase = m_ViewHeap.GPUHandle(ViewHeapSlot);
-            D3D12_CPU_DESCRIPTOR_HANDLE UAVTableBaseCPU = m_ViewHeap.CPUHandle(ViewHeapSlot);
-
-            m_pDevice12->CopyDescriptors(1, &UAVTableBaseCPU, &numUAVs,
-                numUAVs, UAVDescriptors, nullptr /*sizes*/,
-                m_ViewHeap.m_Desc.Type);
-
-            ViewHeapSlot += numUAVs;
+            CopyDescriptorsSimpleHelper(m_ViewHeap, /*inout*/ ViewHeapSlot, numUAVs, UAVDescriptors);
         }
     }
 

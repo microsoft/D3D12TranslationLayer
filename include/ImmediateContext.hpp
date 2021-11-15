@@ -1421,6 +1421,16 @@ public: // variables
     void RollOverHeap(OnlineDescriptorHeap& Heap) noexcept(false);
     UINT ReserveSlotsForBindings(OnlineDescriptorHeap& Heap, UINT (ImmediateContext::*pfnCalcRequiredSlots)()) noexcept(false);
     UINT ReserveSlots(OnlineDescriptorHeap& Heap, UINT NumSlots) noexcept(false);
+    /// <summary>
+    /// Copy descriptors referenced by the handles in pSrcDescriptorHandles to a linear set of HeapSlots starting at HeapSlot.
+    /// Note that HeapSlot is updated by this method.
+    /// </summary>
+    void CopyDescriptorsSimpleHelper(
+        OnlineDescriptorHeap& heap,
+        _Inout_ UINT& HeapSlot,
+        const UINT numDescriptors,
+        const D3D12_CPU_DESCRIPTOR_HANDLE* pSrcDescriptorHandles
+    );
 
     D3D12_CPU_DESCRIPTOR_HANDLE m_NullSRVs[(UINT)RESOURCE_DIMENSION::TEXTURECUBEARRAY+1];
     D3D12_CPU_DESCRIPTOR_HANDLE m_NullUAVs[(UINT)RESOURCE_DIMENSION::TEXTURECUBEARRAY+1];
