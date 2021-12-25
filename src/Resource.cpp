@@ -585,6 +585,7 @@ namespace D3D12TranslationLayer
                         IID_PPV_ARGS(&m_Identity->m_spUnderlyingResource));
                 }
                 const UINT D3D11_BIND_CAPTURE = 0x800;
+                UNREFERENCED_PARAMETER(D3D11_BIND_CAPTURE);
                 assert(hr != E_INVALIDARG || (Flags11.BindFlags & D3D11_BIND_CAPTURE));
                 ThrowFailure(hr); // throw( _com_error )
             }, threadingContext);
