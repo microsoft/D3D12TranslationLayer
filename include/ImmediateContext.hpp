@@ -851,6 +851,7 @@ public:
         UINT IsXbox : 1;
         UINT AdjustYUY2BlitCoords : 1;
         GUID CreatorID;
+        DWORD MaxAllocatedUploadHeapSpacePerCommandList;
     };
 
     ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTIONS& caps,

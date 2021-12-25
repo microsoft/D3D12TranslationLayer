@@ -111,6 +111,13 @@ namespace D3D12TranslationLayer
         bool                                                m_bNeedSubmitFence;
         ThrowingSafeHandle                                  m_hWaitEvent;
 
+        // The more upload heap space allocated in a command list, the more memory we are 
+        // potentially holding up that could have been recycled into the pool. If too
+        // much is held up, flush the command list
+        static constexpr UINT cMaxAllocatedUploadHeapSpacePerCommandList = 256 * 1024 * 1024;
+
+        DWORD                                               m_MaxAllocatedUploadHeapSpacePerCommandList;
+
         // Command allocator pools
         CFencePool< unique_comptr<ID3D12CommandAllocator> > m_AllocatorPool;
 
