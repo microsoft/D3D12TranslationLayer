@@ -28,8 +28,12 @@ namespace D3D12TranslationLayer
         , m_pCommandAllocator(nullptr)
         , m_AllocatorPool(false /*bLock*/)
         , m_hWaitEvent(CreateEvent(nullptr, FALSE, FALSE, nullptr)) // throw( _com_error )
+        , m_MaxAllocatedUploadHeapSpacePerCommandList(cMaxAllocatedUploadHeapSpacePerCommandList)
     {
         ResetCommandListTrackingData();
+
+        m_MaxAllocatedUploadHeapSpacePerCommandList = min(m_MaxAllocatedUploadHeapSpacePerCommandList,
+            m_pParent->m_CreationArgs.MaxAllocatedUploadHeapSpacePerCommandList);
         
         if (!m_pCommandQueue)
         {
@@ -100,18 +104,13 @@ namespace D3D12TranslationLayer
         // flushing if it appears that the app doesn't need to kick off work early.
         static const UINT cMinFlushesWithNoCPUReadback = 50;
 
-        // The more upload heap space allocated in a command list, the more memory we are 
-        // potentially holding up that could have been recycled into the pool. If too
-        // much is held up, flush the command list
-        static const UINT cMaxAllocatedUploadHeapSpacePerCommandList = 256 * 1024 * 1024;
-
         const bool bHaveEnoughCommandsForSubmit = 
             m_NumCommands > cMinRenderOpsForSubmit ||
             m_NumDraws + m_NumDispatches > cMinDrawsOrDispatchesForSubmit;
         const bool bShouldOpportunisticFlush =
             m_NumFlushesWithNoReadback < cMinFlushesWithNoCPUReadback;
         const bool bShouldFreeUpMemory =
-            m_UploadHeapSpaceAllocated > cMaxAllocatedUploadHeapSpacePerCommandList;
+            m_UploadHeapSpaceAllocated > m_MaxAllocatedUploadHeapSpacePerCommandList;
         if ((bHaveEnoughCommandsForSubmit && bShouldOpportunisticFlush) ||
             bShouldFreeUpMemory)
         {

@@ -934,8 +934,8 @@ namespace D3D12TranslationLayer
             // In progressive - scan frame - structured coding such as in H.261, bPicStructure is 3. 
             // A derived value PicCurrentField is defined as zero unless bPicStructure is 2 (bottom field).In which case, it is 1. 
             // This member has the same meaning as the picture_structure variable defined in Section 6.3.10 and Table 6 - 14 of MPEG - 2 (H.262).
-            constexpr BYTE TOP_FIELD = 1;
-            constexpr BYTE BOTTOM_FIELD = 2;
+            [[maybe_unused]] constexpr BYTE TOP_FIELD = 1;
+            [[maybe_unused]] constexpr BYTE BOTTOM_FIELD = 2;
             constexpr BYTE FRAME_PICTURE = 3;
             
             // sample field picture has half as many macroblocks as frame
