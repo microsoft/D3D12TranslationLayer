@@ -171,6 +171,8 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
     m_vUAVBarriers.reserve(D3D11_1_UAV_SLOT_COUNT); // throw( bad_alloc )
 
     m_ViewHeap.m_MaxHeapSize = min((DWORD) D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_1, m_CreationArgs.MaxSRVHeapSize);
+    if (m_ViewHeap.m_MaxHeapSize == 0)
+        m_ViewHeap.m_MaxHeapSize = D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_1;
     const UINT32 viewHeapStartingCount = m_bUseRingBufferDescriptorHeaps ? 4096 : m_ViewHeap.m_MaxHeapSize;
     m_ViewHeap.m_DescriptorRingBuffer = CFencedRingBuffer(viewHeapStartingCount);
     m_ViewHeap.m_Desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
