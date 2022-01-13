@@ -155,13 +155,13 @@ constexpr D3D12_RESOURCE_STATES RESOURCE_STATE_ALL_WRITE_BITS =
     {
         LIST_ENTRY m_TransitionListEntry;
         CDesiredResourceState m_DesiredState;
-        const bool m_bTriggersDeferredWaits;
-        std::vector<DeferredWait> m_DeferredWaits;
+        const bool m_bTriggersSwapchainDeferredWaits;
+        std::vector<DeferredWait> m_ResourceDeferredWaits;
 
         static size_t CalcPreallocationSize(UINT NumSubresources) { return CDesiredResourceState::CalcPreallocationSize(NumSubresources); }
         TransitionableResourceBase(UINT NumSubresources, bool bTriggersDeferredWaits, void*& pPreallocatedMemory) noexcept
             : m_DesiredState(NumSubresources, pPreallocatedMemory)
-            , m_bTriggersDeferredWaits(bTriggersDeferredWaits)
+            , m_bTriggersSwapchainDeferredWaits(bTriggersDeferredWaits)
         {
             D3D12TranslationLayer::InitializeListHead(&m_TransitionListEntry);
         }
@@ -176,7 +176,7 @@ constexpr D3D12_RESOURCE_STATES RESOURCE_STATE_ALL_WRITE_BITS =
 
         void AddDeferredWaits(const std::vector<DeferredWait>& DeferredWaits) noexcept(false)
         {
-            m_DeferredWaits.insert(m_DeferredWaits.end(), DeferredWaits.begin(), DeferredWaits.end()); // throw( bad_alloc )
+            m_ResourceDeferredWaits.insert(m_ResourceDeferredWaits.end(), DeferredWaits.begin(), DeferredWaits.end()); // throw( bad_alloc )
         }
     };
 
@@ -213,7 +213,8 @@ constexpr D3D12_RESOURCE_STATES RESOURCE_STATE_ALL_WRITE_BITS =
     protected:
 
         LIST_ENTRY m_TransitionListHead;
-        std::vector<DeferredWait> m_DeferredWaits;
+        std::vector<DeferredWait> m_SwapchainDeferredWaits;
+        std::vector<DeferredWait> m_ResourceDeferredWaits;
 
         // State that is reset during the preamble, accumulated during resource traversal,
         // and applied during the submission phase.
@@ -235,7 +236,7 @@ constexpr D3D12_RESOURCE_STATES RESOURCE_STATE_ALL_WRITE_BITS =
         std::vector<D3D12_RESOURCE_BARRIER> m_vTentativeResourceBarriers;
         std::vector<PostApplyUpdate> m_vPostApplyUpdates;
         COMMAND_LIST_TYPE m_DestinationCommandListType;
-        bool m_bApplyDeferredWaits;
+        bool m_bApplySwapchainDeferredWaits;
         bool m_bFlushQueues[(UINT)COMMAND_LIST_TYPE::MAX_VALID];
         UINT64 m_QueueFenceValuesToWaitOn[(UINT)COMMAND_LIST_TYPE::MAX_VALID];
 
