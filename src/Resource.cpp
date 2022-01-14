@@ -358,7 +358,7 @@ namespace D3D12TranslationLayer
                         std::move(m_Identity->m_pResidencyHandle),
                         m_LastUsedCommandListID,
                         m_bWaitForCompletionRequired,
-                        std::move(m_DeferredWaits));
+                        std::move(m_ResourceDeferredWaits));
                 }
                 else
                 {
@@ -1072,7 +1072,7 @@ namespace D3D12TranslationLayer
 
             ++m_UnwrapUnderlyingResidencyDeferredWait.value;
             pQueue->Signal(m_UnwrapUnderlyingResidencyDeferredWait.fence->Get(), m_UnwrapUnderlyingResidencyDeferredWait.value);
-            m_DeferredWaits.push_back(m_UnwrapUnderlyingResidencyDeferredWait);
+            m_ResourceDeferredWaits.push_back(m_UnwrapUnderlyingResidencyDeferredWait);
         }
         catch( _com_error& hrEx )
         {

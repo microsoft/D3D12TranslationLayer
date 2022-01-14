@@ -227,7 +227,8 @@ namespace D3D12TranslationLayer
         m_vDstResourceBarriers.reserve(50);
         m_vTentativeResourceBarriers.reserve(20);
         m_vPostApplyUpdates.reserve(50);
-        m_DeferredWaits.reserve(5);
+        m_SwapchainDeferredWaits.reserve(5);
+        m_ResourceDeferredWaits.reserve(5);
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
@@ -302,7 +303,7 @@ namespace D3D12TranslationLayer
     //----------------------------------------------------------------------------------------------------------------------------------
     void ResourceStateManagerBase::AddDeferredWait(std::shared_ptr<Fence> const& spFence, UINT64 Value) noexcept(false)
     {
-        m_DeferredWaits.emplace_back(DeferredWait{ spFence, Value }); // throw( bad_alloc )
+        m_SwapchainDeferredWaits.emplace_back(DeferredWait{ spFence, Value }); // throw( bad_alloc )
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
@@ -317,7 +318,7 @@ namespace D3D12TranslationLayer
         m_vPostApplyUpdates.clear();
 
         m_DestinationCommandListType = COMMAND_LIST_TYPE::UNKNOWN;
-        m_bApplyDeferredWaits = false;
+        m_bApplySwapchainDeferredWaits = false;
         for (auto& bFlush : m_bFlushQueues) { bFlush = false; }
         for (auto& FenceValue : m_QueueFenceValuesToWaitOn) { FenceValue = 0; }
     }
@@ -467,16 +468,17 @@ namespace D3D12TranslationLayer
             assert((Flags & SubresourceTransitionFlags::NoBindingTransitions) == SubresourceTransitionFlags::None ||
                    !bNeedsTransitionToBindState);
 
-            if (IsD3D12WriteState(after, Flags) && TransitionableResource.m_bTriggersDeferredWaits)
+            if (IsD3D12WriteState(after, Flags) && TransitionableResource.m_bTriggersSwapchainDeferredWaits)
             {
-                m_bApplyDeferredWaits = true;
+                m_bApplySwapchainDeferredWaits = true;
             }
 
-            if (!TransitionableResource.m_DeferredWaits.empty())
+            if (!TransitionableResource.m_ResourceDeferredWaits.empty())
             {
-                m_DeferredWaits.insert(m_DeferredWaits.begin(), TransitionableResource.m_DeferredWaits.begin(), TransitionableResource.m_DeferredWaits.end()); // throw( bad_alloc )
-                TransitionableResource.m_DeferredWaits.clear();
-                m_bApplyDeferredWaits = true;
+                m_ResourceDeferredWaits.insert(m_ResourceDeferredWaits.begin(),
+                    TransitionableResource.m_ResourceDeferredWaits.begin(),
+                    TransitionableResource.m_ResourceDeferredWaits.end()); // throw( bad_alloc )
+                TransitionableResource.m_ResourceDeferredWaits.clear();
             }
 
             if (CurrentState.IsExclusiveState(i))
@@ -634,7 +636,7 @@ namespace D3D12TranslationLayer
                 // All other resources go into a vector which is safe to submit before a flush.
                 auto& TransitionVector = CurrentState.SupportsSimultaneousAccess() ?
                     m_vTentativeResourceBarriers :
-                    (TransitionableResource.m_bTriggersDeferredWaits ?
+                    (TransitionableResource.m_bTriggersSwapchainDeferredWaits ?
                      m_vDstResourceBarriers : m_vSrcResourceBarriers[(UINT)curCmdListType]);
                 TransitionDesc.Transition.StateBefore = D3D12_RESOURCE_STATES(CurrentExclusiveState.State);
                 TransitionDesc.Transition.StateAfter = D3D12_RESOURCE_STATES(after);
@@ -859,7 +861,8 @@ namespace D3D12TranslationLayer
         }
 
         // Step 3: Flush the destination command list type if necessary
-        bool bFlushDestination = (m_bApplyDeferredWaits && !m_DeferredWaits.empty());
+        bool bFlushDestination = (m_bApplySwapchainDeferredWaits && !m_SwapchainDeferredWaits.empty()) ||
+            !m_ResourceDeferredWaits.empty();
         if (!bFlushDestination)
         {
             for (UINT i = 0; i < (UINT)COMMAND_LIST_TYPE::MAX_VALID; ++i)
@@ -898,10 +901,7 @@ namespace D3D12TranslationLayer
         }
 
         // Step 4: Insert sync
-        if (m_bApplyDeferredWaits)
-        {
-            InsertDeferredWaitsImpl(m_DestinationCommandListType);
-        }
+        InsertDeferredWaitsImpl(m_DestinationCommandListType);
         for (UINT i = 0; i < (UINT)COMMAND_LIST_TYPE::MAX_VALID; ++i)
         {
             if (m_InsertedQueueSync[(UINT)m_DestinationCommandListType][i] < m_QueueFenceValuesToWaitOn[i])
@@ -946,12 +946,21 @@ namespace D3D12TranslationLayer
             [this, ppManagers](COMMAND_LIST_TYPE type)
         {
             auto pDestinationManager = ppManagers[(UINT)type];
-            for (auto& Wait : m_DeferredWaits)
+            if (m_bApplySwapchainDeferredWaits)
+            {
+                for (auto& Wait : m_SwapchainDeferredWaits)
+                {
+                    pDestinationManager->GetCommandQueue()->Wait(Wait.fence->Get(), Wait.value);
+                    Wait.fence->UsedInCommandList(pDestinationManager->GetCommandListType(), pDestinationManager->GetCommandListID());
+                }
+                m_SwapchainDeferredWaits.clear();
+            }
+            for (auto& Wait : m_ResourceDeferredWaits)
             {
                 pDestinationManager->GetCommandQueue()->Wait(Wait.fence->Get(), Wait.value);
                 Wait.fence->UsedInCommandList(pDestinationManager->GetCommandListType(), pDestinationManager->GetCommandListID());
             }
-            m_DeferredWaits.clear();
+            m_ResourceDeferredWaits.clear();
         };
         auto InsertQueueWaitImpl =
             [this, ppManagers](UINT64 value, COMMAND_LIST_TYPE src, COMMAND_LIST_TYPE dst)
