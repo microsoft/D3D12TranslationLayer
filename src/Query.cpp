@@ -809,8 +809,10 @@ namespace D3D12TranslationLayer
     // Copies data into m_spPredicationBuffer and formats it with a compute shader if necessary
     void Query::FillPredicationBuffer()
     {
+#if USE_PIX
         PIXSetMarker(m_pParent->GetGraphicsCommandList(), 0ull, L"Transform query data for predication");
-
+#endif
+		
         // This buffer is created when the query is created
         assert(m_spPredicationBuffer[(UINT)COMMAND_LIST_TYPE::GRAPHICS]);
         assert(m_CommandListTypeMask == COMMAND_LIST_TYPE_GRAPHICS_MASK);
