@@ -50,8 +50,6 @@ This translation layer provides the following high-level constructs (and more) f
 
 This project produces a lib named D3D12TranslationLayer.lib. Additionally, if the [WDK](https://docs.microsoft.com/en-us/windows-hardware/drivers/download-the-wdk) is installed in addition to the Windows SDK, a second project for a second lib named D3D12TranslationLayer_WDK.lib will be created.
 
-At the time of publishing, this project requires an insider version of the SDK, due to dependencies on an in-development API named DXCore. Insider SDKs can be installed from [here](https://www.microsoft.com/en-us/software-download/windowsinsiderpreviewSDK).
-
 The D3D12TranslationLayer project requires C++17, and only supports building with MSVC at the moment.
 
 ## Contributing
