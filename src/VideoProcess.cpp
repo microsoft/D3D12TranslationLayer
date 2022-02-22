@@ -174,7 +174,7 @@ namespace D3D12TranslationLayer
             &pOutputArguments->D3D12OutputStreamArguments,
             NumInputStreamsForVPBlit,
             pInputArguments->D3D12InputStreamArguments.data());
-        m_pParent->SubmitCommandList(COMMAND_LIST_TYPE::VIDEO_PROCESS);
+        m_pParent->SubmitCommandList(COMMAND_LIST_TYPE::VIDEO_PROCESS);  // throws
 
         // now Blit remaining streams (if needed)
         if (NumInputStreamsForVPBlit < NumInputStreams)

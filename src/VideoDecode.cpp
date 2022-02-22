@@ -826,7 +826,7 @@ namespace D3D12TranslationLayer
                 TraceLoggingValue(statusReportFeedbackNumber, "statusReportFeedbackNumber"));
         }
 
-        m_pParent->SubmitCommandList(COMMAND_LIST_TYPE::VIDEO_DECODE);
+        m_pParent->SubmitCommandList(COMMAND_LIST_TYPE::VIDEO_DECODE);  // throws
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
