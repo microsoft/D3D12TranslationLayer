@@ -802,7 +802,7 @@ void ImmediateContext::PostRender(COMMAND_LIST_TYPE type, UINT64 ReassertBitsToA
 #if DBG
     if (m_DebugFlags & Debug_FlushOnRender  && HasCommands(type))
     {
-        SubmitCommandList(type);
+        SubmitCommandList(type); // throws
     }
 #else
     UNREFERENCED_PARAMETER(type);
@@ -817,7 +817,7 @@ void ImmediateContext::PostDraw()
 #if DBG
     if (m_DebugFlags & Debug_FlushOnDraw && HasCommands(COMMAND_LIST_TYPE::GRAPHICS))
     {
-       SubmitCommandList(COMMAND_LIST_TYPE::GRAPHICS);
+       SubmitCommandList(COMMAND_LIST_TYPE::GRAPHICS);  // throws
     }
 #endif
 }
@@ -830,7 +830,7 @@ void ImmediateContext::PostDispatch()
 #if DBG
     if (m_DebugFlags & Debug_FlushOnDispatch && HasCommands(COMMAND_LIST_TYPE::GRAPHICS))
     {
-        SubmitCommandList(COMMAND_LIST_TYPE::GRAPHICS);
+        SubmitCommandList(COMMAND_LIST_TYPE::GRAPHICS);  // throws
     }
 #endif
 }
@@ -1041,7 +1041,7 @@ void ImmediateContext::PostCopy(Resource *pSrc, UINT srcSubresource, Resource *p
 #if DBG
     if (m_DebugFlags & Debug_FlushOnCopy && HasCommands(COMMAND_LIST_TYPE::GRAPHICS))
     {
-        SubmitCommandList(COMMAND_LIST_TYPE::GRAPHICS);
+        SubmitCommandList(COMMAND_LIST_TYPE::GRAPHICS);  // throws
     }
 #endif
 }
@@ -1053,7 +1053,7 @@ void ImmediateContext::PostUpload()
 #if DBG
     if (m_DebugFlags & Debug_FlushOnDataUpload && HasCommands(COMMAND_LIST_TYPE::GRAPHICS))
     {
-        SubmitCommandList(COMMAND_LIST_TYPE::GRAPHICS);
+        SubmitCommandList(COMMAND_LIST_TYPE::GRAPHICS);  // throws
     }
 #endif
 }
@@ -3412,7 +3412,7 @@ void ImmediateContext::UpdateTileMappingsImpl(
 
     if (NeedToSubmit &&  (Flags & TILE_MAPPING_NO_OVERWRITE) == 0 && HasCommands(commandListType))
     {
-        SubmitCommandList(commandListType);
+        SubmitCommandList(commandListType);  // throws
     }
 
     pResource->UsedInCommandList(commandListType, GetCommandListID(commandListType));
@@ -3706,7 +3706,7 @@ void ImmediateContext::CopyTileMappingsImpl(COMMAND_LIST_TYPE commandListType, R
     auto pSrc = pSrcTiledResource->GetUnderlyingResource();
     if ((Flags & TILE_MAPPING_NO_OVERWRITE) == 0 && HasCommands(commandListType))
     {
-        SubmitCommandList(commandListType);
+        SubmitCommandList(commandListType); // throws
     }
 
     pDstTiledResource->UsedInCommandList(commandListType, GetCommandListID(commandListType));
@@ -4495,13 +4495,13 @@ bool ImmediateContext::SynchronizeForMap(Resource* pResource, UINT Subresource, 
 
 
 //----------------------------------------------------------------------------------------------------------------------------------
-bool ImmediateContext::WaitForFenceValue(COMMAND_LIST_TYPE type, UINT64 FenceValue, bool DoNotWait)  noexcept
+bool ImmediateContext::WaitForFenceValue(COMMAND_LIST_TYPE type, UINT64 FenceValue, bool DoNotWait)
 {
     if (DoNotWait)
     {
         if (FenceValue == GetCommandListID(type))
         {
-            SubmitCommandList(type);
+            SubmitCommandList(type); // throws on CommandListManager::CloseCommandList(...)
         }
         if (FenceValue > GetCompletedFenceValue(type))
         {

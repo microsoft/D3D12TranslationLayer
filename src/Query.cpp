@@ -133,8 +133,22 @@ namespace D3D12TranslationLayer
                     {
                         return false;
                     }
-                    m_pParent->SubmitCommandList(commandListType);
+                    
+                    // convert exceptions to bool result as method is noexcept and SubmitCommandList throws
+                    try
+                    {
+                        m_pParent->SubmitCommandList(commandListType); // throws
+                    }
+                    catch (_com_error&)
+                    {
+                        ret = false;
+                    }
+                    catch (std::bad_alloc&)
+                    {
+                        ret = false;
+                    }
                 }
+
                 UINT64 LastCompletedFence = m_pParent->GetCompletedFenceValue(commandListType);
                 if (LastCompletedFence < m_EndedCommandListID[listType])
                 {

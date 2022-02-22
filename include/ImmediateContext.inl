@@ -1488,23 +1488,23 @@ inline bool ImmediateContext::WaitForFenceValue(COMMAND_LIST_TYPE commandListTyp
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-inline void ImmediateContext::SubmitCommandList(UINT commandListTypeMask) noexcept
+inline void ImmediateContext::SubmitCommandList(UINT commandListTypeMask)
 {
     for (UINT i = 0; i < (UINT)COMMAND_LIST_TYPE::MAX_VALID; i++)
     {
         if ((commandListTypeMask & (1 << i))  &&  m_CommandLists[i])
         {
-            m_CommandLists[i]->SubmitCommandList();
+            m_CommandLists[i]->SubmitCommandList(); // throws
         }
     }
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-inline void ImmediateContext::SubmitCommandList(COMMAND_LIST_TYPE commandListType) noexcept
+inline void ImmediateContext::SubmitCommandList(COMMAND_LIST_TYPE commandListType)
 {
     if (commandListType != COMMAND_LIST_TYPE::UNKNOWN  &&  m_CommandLists[(UINT)commandListType])
     {
-        m_CommandLists[(UINT)commandListType]->SubmitCommandList();
+        m_CommandLists[(UINT)commandListType]->SubmitCommandList(); // throws
     }
 }
 
