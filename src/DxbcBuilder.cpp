@@ -61,6 +61,14 @@ HRESULT CDXBCBuilder::AppendBlob(DXBCFourCC BlobFourCC, UINT BlobSize, const voi
     }
     // Initialize node
 
+#ifdef DBG
+    if (BlobSize % 4 != 0)
+    {
+        OutputDebugString("Blobsize should be a multiple of 4!");
+        DebugBreak();
+    }
+#endif
+
     // Check what the new total output container size will be.
     UINT NewTotalSize = m_TotalOutputContainerSize + BlobSize +
                         4 /*container index entry*/ + sizeof(DXBCBlobHeader) /* blob header */;
