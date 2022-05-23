@@ -414,21 +414,21 @@ namespace D3D12TranslationLayer
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    UINT64 CommandListManager::EnsureFlushedAndFenced() noexcept
+    UINT64 CommandListManager::EnsureFlushedAndFenced() // Can't be marked as noexcept as SubmitCommandList(Impl) -> CommandListManager::CloseCommandList(...) throws
     {
         m_NumFlushesWithNoReadback = 0;
-        PrepForCommandQueueSync();
+        PrepForCommandQueueSync(); // throws
         UINT64 FenceValue = GetCommandListID() - 1;
 
         return FenceValue;
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    void CommandListManager::PrepForCommandQueueSync() noexcept
+    void CommandListManager::PrepForCommandQueueSync() // Can't be marked as noexcept as SubmitCommandList(Impl) -> CommandListManager::CloseCommandList(...) throws
     {
         if (HasCommands())
         {
-            SubmitCommandListImpl();
+            SubmitCommandListImpl(); // throws
         }
         else if (m_bNeedSubmitFence)
         {
@@ -437,9 +437,9 @@ namespace D3D12TranslationLayer
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    HRESULT CommandListManager::EnqueueSetEvent(HANDLE hEvent) noexcept
+    HRESULT CommandListManager::EnqueueSetEvent(HANDLE hEvent) // Can't be marked as noexcept as EnsureFlushedAndFenced throws
     {
-        UINT64 FenceValue = EnsureFlushedAndFenced();
+        UINT64 FenceValue = EnsureFlushedAndFenced(); // throws
 
 #if DBG
         if (m_pParent->DebugFlags() & Debug_StallExecution)
@@ -452,9 +452,9 @@ namespace D3D12TranslationLayer
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    bool CommandListManager::WaitForCompletion() noexcept
+    bool CommandListManager::WaitForCompletion() // Can't be marked as noexcept as it throws
     {
-        ThrowFailure(EnqueueSetEvent(m_hWaitEvent));
+        ThrowFailure(EnqueueSetEvent(m_hWaitEvent)); // throws
 
         PIXNotifyWakeFromFenceSignal(m_hWaitEvent);
         DWORD waitRet = WaitForSingleObject(m_hWaitEvent, INFINITE);

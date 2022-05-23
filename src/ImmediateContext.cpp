@@ -380,8 +380,20 @@ bool ImmediateContext::Shutdown() noexcept
             m_CommandLists[i]->DiscardCommandList();
 
             // Make sure any GPU work still in the pipe is finished
-            success = m_CommandLists[i]->WaitForCompletion();
+            try {
+                success = m_CommandLists[i]->WaitForCompletion(); // throws
+            }
+            catch (_com_error&)
+            {
+                success = false;
+            }
+            catch (std::bad_alloc&)
+            {
+                success = false;
+            }
+
             if (!success) break;
+
         }
     }
     return success;
@@ -5262,7 +5274,7 @@ HRESULT TRANSLATION_API ImmediateContext::ResolveSharedResource(Resource* pResou
         assert(ExclusiveState.IsMostRecentlyExclusiveState && ExclusiveState.CommandListType == COMMAND_LIST_TYPE::GRAPHICS);
         if (ExclusiveState.FenceValue == GetCommandListID(ExclusiveState.CommandListType))
         {
-            GetCommandListManager(COMMAND_LIST_TYPE::GRAPHICS)->PrepForCommandQueueSync();
+            GetCommandListManager(COMMAND_LIST_TYPE::GRAPHICS)->PrepForCommandQueueSync(); // throws
             break;
         }
     }

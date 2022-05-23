@@ -7,7 +7,18 @@ namespace D3D12TranslationLayer
 
     SwapChainManager::~SwapChainManager()
     {
-        m_ImmCtx.WaitForCompletion( D3D12TranslationLayer::COMMAND_LIST_TYPE_ALL_MASK );
+        bool success = false;
+        try {
+            success = m_ImmCtx.WaitForCompletion(D3D12TranslationLayer::COMMAND_LIST_TYPE_ALL_MASK); // throws
+        }
+        catch (_com_error&)
+        {
+            success = false;
+        }
+        catch (std::bad_alloc&)
+        {
+            success = false;
+        }
     }
 
     IDXGISwapChain3* SwapChainManager::GetSwapChainForWindow(HWND hwnd, Resource& presentingResource)
@@ -24,7 +35,7 @@ namespace D3D12TranslationLayer
                  Desc.BufferDesc.Width != pResourceDesc->Width() ||
                  Desc.BufferDesc.Height != pResourceDesc->Height())
             {
-                m_ImmCtx.WaitForCompletion( D3D12TranslationLayer::COMMAND_LIST_TYPE_ALL_MASK );
+                m_ImmCtx.WaitForCompletion( D3D12TranslationLayer::COMMAND_LIST_TYPE_ALL_MASK ); // throws
                 ThrowFailure( spSwapChain->ResizeBuffers( BufferCount,
                                                           pResourceDesc->Width(),
                                                           pResourceDesc->Height(),

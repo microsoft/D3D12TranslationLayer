@@ -1400,7 +1400,7 @@ inline void ImmediateContext::ResetCommandList(UINT commandListTypeMask) noexcep
 
 
 //----------------------------------------------------------------------------------------------------------------------------------
-inline HRESULT ImmediateContext::EnqueueSetEvent(UINT commandListTypeMask, HANDLE hEvent) noexcept
+inline HRESULT ImmediateContext::EnqueueSetEvent(UINT commandListTypeMask, HANDLE hEvent) // Can't be marked as noexcept as EnsureFlushedAndFenced throws
 {
     PIXSetMarker(0ull, L"EnqueueSetEvent");
     HRESULT hr = S_OK;
@@ -1412,7 +1412,7 @@ inline HRESULT ImmediateContext::EnqueueSetEvent(UINT commandListTypeMask, HANDL
         if ((commandListTypeMask & (1 << i)) && m_CommandLists[i])
         {
             pFences[nLists] = m_CommandLists[i]->GetFence()->Get();
-            FenceValues[nLists] = m_CommandLists[i]->EnsureFlushedAndFenced();
+            FenceValues[nLists] = m_CommandLists[i]->EnsureFlushedAndFenced(); // throws
             ++nLists;
         }
     }
@@ -1426,11 +1426,11 @@ inline HRESULT ImmediateContext::EnqueueSetEvent(UINT commandListTypeMask, HANDL
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-inline HRESULT ImmediateContext::EnqueueSetEvent(COMMAND_LIST_TYPE commandListType, HANDLE hEvent) noexcept
+inline HRESULT ImmediateContext::EnqueueSetEvent(COMMAND_LIST_TYPE commandListType, HANDLE hEvent) // Can't be marked as noexcept as EnqueueSetEvent throws
 {
     if (commandListType != COMMAND_LIST_TYPE::UNKNOWN  &&  m_CommandLists[(UINT)commandListType])
     {
-        return m_CommandLists[(UINT)commandListType]->EnqueueSetEvent(hEvent);
+        return m_CommandLists[(UINT)commandListType]->EnqueueSetEvent(hEvent); // throws
     }
     else
     {
@@ -1439,7 +1439,7 @@ inline HRESULT ImmediateContext::EnqueueSetEvent(COMMAND_LIST_TYPE commandListTy
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-inline bool ImmediateContext::WaitForCompletion(UINT commandListTypeMask) noexcept
+inline bool ImmediateContext::WaitForCompletion(UINT commandListTypeMask) // Can't be marked as noexcept as EnqueueSetEvent throws
 {
     UINT nLists = 0;
     HANDLE hEvents[(UINT)COMMAND_LIST_TYPE::MAX_VALID] = {};
@@ -1448,7 +1448,7 @@ inline bool ImmediateContext::WaitForCompletion(UINT commandListTypeMask) noexce
         if ((commandListTypeMask & (1 << i)) && m_CommandLists[i])
         {
             hEvents[nLists] = m_CommandLists[i]->GetEvent();
-            if (FAILED(m_CommandLists[i]->EnqueueSetEvent(hEvents[nLists])))
+            if (FAILED(m_CommandLists[i]->EnqueueSetEvent(hEvents[nLists]))) // throws
             {
                 return false;
             }
@@ -1462,11 +1462,11 @@ inline bool ImmediateContext::WaitForCompletion(UINT commandListTypeMask) noexce
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-inline bool ImmediateContext::WaitForCompletion(COMMAND_LIST_TYPE commandListType) noexcept
+inline bool ImmediateContext::WaitForCompletion(COMMAND_LIST_TYPE commandListType) // Can't be marked as noexcept as it throws
 {
     if (commandListType != COMMAND_LIST_TYPE::UNKNOWN  &&  m_CommandLists[(UINT)commandListType])
     {
-        return m_CommandLists[(UINT)commandListType]->WaitForCompletion();
+        return m_CommandLists[(UINT)commandListType]->WaitForCompletion(); // throws
     }
     else
     {

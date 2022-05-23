@@ -49,14 +49,14 @@ namespace D3D12TranslationLayer
         void DiscardCommandList();
         void ResetResidencySet();
 
-        void PrepForCommandQueueSync() noexcept;
+        void PrepForCommandQueueSync(); // Can't be marked as noexcept as SubmitCommandList(Impl) -> CommandListManager::CloseCommandList(...) throws
 
         // Returns true if synchronization was successful, false likely means device is removed
-        bool WaitForCompletion() noexcept;
+        bool WaitForCompletion(); // Can't be marked as noexcept as it throws
         bool WaitForFenceValue(UINT64 FenceValue) noexcept;
         UINT64 GetCompletedFenceValue() noexcept { return m_Fence.GetCompletedValue(); }
-        HRESULT EnqueueSetEvent(HANDLE hEvent) noexcept;
-        UINT64 EnsureFlushedAndFenced() noexcept;
+        HRESULT EnqueueSetEvent(HANDLE hEvent); // Can't be marked as noexcept as EnsureFlushedAndFenced throws
+        UINT64 EnsureFlushedAndFenced(); // Can't be marked as noexcept as PrepForCommandQueueSync throws
         HANDLE GetEvent() noexcept { return m_hWaitEvent; }
         void AddResourceToResidencySet(Resource *pResource);
 
