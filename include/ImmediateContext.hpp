@@ -885,7 +885,7 @@ public:
     // Returns true if synchronization was successful, false likely means device is removed
     bool WaitForCompletion(UINT commandListTypeMask); // Can't be marked as noexcept as it throws
     bool WaitForCompletion(COMMAND_LIST_TYPE commandListType); // Can't be marked as noexcept as it throws
-    bool WaitForFenceValue(COMMAND_LIST_TYPE commandListType, UINT64 FenceValue) noexcept;
+    bool WaitForFenceValue(COMMAND_LIST_TYPE commandListType, UINT64 FenceValue); // Can't be marked as noexcept as it throws
     bool WaitForFenceValue(COMMAND_LIST_TYPE type, UINT64 FenceValue, bool DoNotWait); // Can't be marked as noexcept as SubmitCommandList throws
 
     ID3D12GraphicsCommandList *GetGraphicsCommandList() noexcept;

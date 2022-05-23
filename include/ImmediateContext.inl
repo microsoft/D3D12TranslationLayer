@@ -1475,11 +1475,11 @@ inline bool ImmediateContext::WaitForCompletion(COMMAND_LIST_TYPE commandListTyp
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-inline bool ImmediateContext::WaitForFenceValue(COMMAND_LIST_TYPE commandListType, UINT64 FenceValue) noexcept
+inline bool ImmediateContext::WaitForFenceValue(COMMAND_LIST_TYPE commandListType, UINT64 FenceValue) // Can't be marked as noexcept as it throws
 {
     if (commandListType != COMMAND_LIST_TYPE::UNKNOWN  &&  m_CommandLists[(UINT)commandListType])
     {
-        return m_CommandLists[(UINT)commandListType]->WaitForFenceValue(FenceValue);
+        return m_CommandLists[(UINT)commandListType]->WaitForFenceValue(FenceValue); // throws
     }
     else
     {

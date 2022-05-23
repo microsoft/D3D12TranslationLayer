@@ -217,7 +217,7 @@ namespace D3D12TranslationLayer
         }
 
         // TODO: Deal with failure from Close()
-        CloseCommandList(m_pCommandList.get());
+        CloseCommandList(m_pCommandList.get()); // throws
 
         auto pCommandList = m_pCommandList.get();
         
@@ -248,7 +248,7 @@ namespace D3D12TranslationLayer
 #if DBG
         if (m_pParent->DebugFlags() & Debug_WaitOnFlush)
         {
-            WaitForFenceValue(m_commandListID - 1);
+            WaitForFenceValue(m_commandListID - 1); // throws
         }
 #endif
 
@@ -464,15 +464,15 @@ namespace D3D12TranslationLayer
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    bool CommandListManager::WaitForFenceValue(UINT64 FenceValue) noexcept
+    bool CommandListManager::WaitForFenceValue(UINT64 FenceValue) // Can't be marked as noexcept as it throws
     {
         m_NumFlushesWithNoReadback = 0;
 
-        return WaitForFenceValueInternal(true, FenceValue);
+        return WaitForFenceValueInternal(true, FenceValue); // throws
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    bool CommandListManager::WaitForFenceValueInternal(bool IsImmediateContextThread, UINT64 FenceValue) noexcept
+    bool CommandListManager::WaitForFenceValueInternal(bool IsImmediateContextThread, UINT64 FenceValue) // Can't be marked as noexcept as it throws
     {
         // Command list ID is the value of the fence that will be signaled on submission
         UINT64 CurCmdListID = IsImmediateContextThread ? m_commandListID : GetCommandListIDInterlockedRead();
@@ -483,7 +483,7 @@ namespace D3D12TranslationLayer
                 assert(CurCmdListID == FenceValue);
                 if (HasCommands())
                 {
-                    SubmitCommandListImpl();
+                    SubmitCommandListImpl(); // throws
                 }
                 else
                 {

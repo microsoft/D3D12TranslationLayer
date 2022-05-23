@@ -53,7 +53,7 @@ namespace D3D12TranslationLayer
 
         // Returns true if synchronization was successful, false likely means device is removed
         bool WaitForCompletion(); // Can't be marked as noexcept as it throws
-        bool WaitForFenceValue(UINT64 FenceValue) noexcept;
+        bool WaitForFenceValue(UINT64 FenceValue); // Can't be marked as noexcept as it throws
         UINT64 GetCompletedFenceValue() noexcept { return m_Fence.GetCompletedValue(); }
         HRESULT EnqueueSetEvent(HANDLE hEvent); // Can't be marked as noexcept as EnsureFlushedAndFenced throws
         UINT64 EnsureFlushedAndFenced(); // Can't be marked as noexcept as PrepForCommandQueueSync throws
@@ -72,7 +72,7 @@ namespace D3D12TranslationLayer
         ID3D12VideoProcessCommandList2* GetVideoProcessCommandList(ID3D12CommandList *pCommandList = nullptr) { return  m_type == COMMAND_LIST_TYPE::VIDEO_PROCESS ? static_cast<ID3D12VideoProcessCommandList2 * const>(pCommandList ? pCommandList : m_pCommandList.get()) : nullptr; }
         ID3D12GraphicsCommandList* GetGraphicsCommandList(ID3D12CommandList *pCommandList = nullptr) { return  m_type == COMMAND_LIST_TYPE::GRAPHICS ? static_cast<ID3D12GraphicsCommandList * const>(pCommandList ? pCommandList : m_pCommandList.get()) : nullptr; }
 
-        bool WaitForFenceValueInternal(bool IsImmediateContextThread, UINT64 FenceValue) noexcept;
+        bool WaitForFenceValueInternal(bool IsImmediateContextThread, UINT64 FenceValue); // Can't be marked as noexcept as it throws
         bool ComputeOnly() {return !!(m_pParent->FeatureLevel() == D3D_FEATURE_LEVEL_1_0_CORE);}
 
     private:

@@ -91,7 +91,7 @@ namespace D3D12TranslationLayer
         {
             m_ImmCtx.WaitForFenceValue(
                 D3D12TranslationLayer::COMMAND_LIST_TYPE::GRAPHICS,
-                *m_PresentFenceValuesBegin );
+                *m_PresentFenceValuesBegin ); // throws
         }
     }
 }
