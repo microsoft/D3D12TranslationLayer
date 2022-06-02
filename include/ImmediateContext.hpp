@@ -876,14 +876,14 @@ public:
     ID3D12CommandQueue *GetCommandQueue(COMMAND_LIST_TYPE type) noexcept;
     void ResetCommandList(UINT commandListTypeMask) noexcept;
     void CloseCommandList(UINT commandListTypeMask) noexcept;
-    HRESULT EnqueueSetEvent(UINT commandListTypeMask, HANDLE hEvent); // Can't be marked as noexcept as EnsureFlushedAndFenced throws
-    HRESULT EnqueueSetEvent(COMMAND_LIST_TYPE commandListType, HANDLE hEvent); // Can't be marked as noexcept as EnsureFlushedAndFenced throws
+    HRESULT EnqueueSetEvent(UINT commandListTypeMask, HANDLE hEvent) noexcept;
+    HRESULT EnqueueSetEvent(COMMAND_LIST_TYPE commandListType, HANDLE hEvent) noexcept;
     Fence *GetFence(COMMAND_LIST_TYPE type) noexcept;
     void SubmitCommandList(UINT commandListTypeMask); // Can't be marked as noexcept as SubmitCommandList(Impl) -> CommandListManager::CloseCommandList(...) throws
     void SubmitCommandList(COMMAND_LIST_TYPE commandListType); // Can't be marked as noexcept as SubmitCommandList(Impl) -> CommandListManager::CloseCommandList(...) throws
 
     // Returns true if synchronization was successful, false likely means device is removed
-    bool WaitForCompletion(UINT commandListTypeMask); // Can't be marked as noexcept as it throws
+    bool WaitForCompletion(UINT commandListTypeMask) noexcept;
     bool WaitForCompletion(COMMAND_LIST_TYPE commandListType); // Can't be marked as noexcept as it throws
     bool WaitForFenceValue(COMMAND_LIST_TYPE commandListType, UINT64 FenceValue); // Can't be marked as noexcept as it throws
     bool WaitForFenceValue(COMMAND_LIST_TYPE type, UINT64 FenceValue, bool DoNotWait); // Can't be marked as noexcept as SubmitCommandList throws

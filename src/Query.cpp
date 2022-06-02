@@ -769,7 +769,7 @@ namespace D3D12TranslationLayer
         {
             // Out of instances
             // Wait for the GPU to finish all outstanding work
-            m_pParent->WaitForCompletion(m_CommandListTypeMask); // throws
+            m_pParent->WaitForCompletion(m_CommandListTypeMask);
 
             // Accumulate all results into Instance0
             void* pMappedData = nullptr;

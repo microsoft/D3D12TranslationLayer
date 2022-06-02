@@ -7,18 +7,7 @@ namespace D3D12TranslationLayer
 
     SwapChainManager::~SwapChainManager()
     {
-        // Stop exception here, as destructor is noexcept
-        try {
-            m_ImmCtx.WaitForCompletion(D3D12TranslationLayer::COMMAND_LIST_TYPE_ALL_MASK); // throws
-        }
-        catch (_com_error&)
-        {
-            // success = false;
-        }
-        catch (std::bad_alloc&)
-        {
-            // success = false;
-        }
+        m_ImmCtx.WaitForCompletion(D3D12TranslationLayer::COMMAND_LIST_TYPE_ALL_MASK);
     }
 
     IDXGISwapChain3* SwapChainManager::GetSwapChainForWindow(HWND hwnd, Resource& presentingResource)
@@ -35,7 +24,7 @@ namespace D3D12TranslationLayer
                  Desc.BufferDesc.Width != pResourceDesc->Width() ||
                  Desc.BufferDesc.Height != pResourceDesc->Height())
             {
-                m_ImmCtx.WaitForCompletion( D3D12TranslationLayer::COMMAND_LIST_TYPE_ALL_MASK ); // throws
+                m_ImmCtx.WaitForCompletion( D3D12TranslationLayer::COMMAND_LIST_TYPE_ALL_MASK );
                 ThrowFailure( spSwapChain->ResizeBuffers( BufferCount,
                                                           pResourceDesc->Width(),
                                                           pResourceDesc->Height(),

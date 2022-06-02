@@ -55,7 +55,7 @@ namespace D3D12TranslationLayer
         bool WaitForCompletion(); // Can't be marked as noexcept as it throws
         bool WaitForFenceValue(UINT64 FenceValue); // Can't be marked as noexcept as it throws
         UINT64 GetCompletedFenceValue() noexcept { return m_Fence.GetCompletedValue(); }
-        HRESULT EnqueueSetEvent(HANDLE hEvent); // Can't be marked as noexcept as EnsureFlushedAndFenced throws
+        HRESULT EnqueueSetEvent(HANDLE hEvent) noexcept;
         UINT64 EnsureFlushedAndFenced(); // Can't be marked as noexcept as PrepForCommandQueueSync throws
         HANDLE GetEvent() noexcept { return m_hWaitEvent; }
         void AddResourceToResidencySet(Resource *pResource);

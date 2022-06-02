@@ -437,9 +437,20 @@ namespace D3D12TranslationLayer
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    HRESULT CommandListManager::EnqueueSetEvent(HANDLE hEvent) // Can't be marked as noexcept as EnsureFlushedAndFenced throws
+    HRESULT CommandListManager::EnqueueSetEvent(HANDLE hEvent) noexcept
     {
-        UINT64 FenceValue = EnsureFlushedAndFenced(); // throws
+        UINT64 FenceValue = 0;
+        try {
+            FenceValue = EnsureFlushedAndFenced(); // throws
+        }
+        catch (_com_error& e)
+        {
+            return e.Error();
+        }
+        catch (std::bad_alloc&)
+        {
+            return E_OUTOFMEMORY;
+        }
 
 #if DBG
         if (m_pParent->DebugFlags() & Debug_StallExecution)
