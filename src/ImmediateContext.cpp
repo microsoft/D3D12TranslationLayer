@@ -371,7 +371,6 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
 
 bool ImmediateContext::Shutdown() noexcept
 {
-    bool success = true;
     for (UINT i = 0; i < (UINT)COMMAND_LIST_TYPE::MAX_VALID; i++)
     {
         if (m_CommandLists[i])
@@ -381,22 +380,22 @@ bool ImmediateContext::Shutdown() noexcept
 
             // Make sure any GPU work still in the pipe is finished
             try {
-                success = m_CommandLists[i]->WaitForCompletion(); // throws
+                if (!m_CommandLists[i]->WaitForCompletion()) // throws
+                {
+                    return false;
+                }
             }
             catch (_com_error&)
             {
-                success = false;
+                return false;
             }
             catch (std::bad_alloc&)
             {
-                success = false;
+                return false;
             }
-
-            if (!success) break;
-
         }
     }
-    return success;
+    return true;
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
