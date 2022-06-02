@@ -1473,7 +1473,7 @@ inline bool ImmediateContext::WaitForCompletion(UINT commandListTypeMask) noexce
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-inline bool ImmediateContext::WaitForCompletion(COMMAND_LIST_TYPE commandListType) // Can't be marked as noexcept as it throws
+inline bool ImmediateContext::WaitForCompletion(COMMAND_LIST_TYPE commandListType)
 {
     if (commandListType != COMMAND_LIST_TYPE::UNKNOWN  &&  m_CommandLists[(UINT)commandListType])
     {
@@ -1486,7 +1486,7 @@ inline bool ImmediateContext::WaitForCompletion(COMMAND_LIST_TYPE commandListTyp
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-inline bool ImmediateContext::WaitForFenceValue(COMMAND_LIST_TYPE commandListType, UINT64 FenceValue) // Can't be marked as noexcept as it throws
+inline bool ImmediateContext::WaitForFenceValue(COMMAND_LIST_TYPE commandListType, UINT64 FenceValue)
 {
     if (commandListType != COMMAND_LIST_TYPE::UNKNOWN  &&  m_CommandLists[(UINT)commandListType])
     {

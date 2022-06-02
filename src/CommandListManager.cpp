@@ -413,7 +413,7 @@ namespace D3D12TranslationLayer
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    UINT64 CommandListManager::EnsureFlushedAndFenced() // Can't be marked as noexcept as SubmitCommandList(Impl) -> CommandListManager::CloseCommandList(...) throws
+    UINT64 CommandListManager::EnsureFlushedAndFenced()
     {
         m_NumFlushesWithNoReadback = 0;
         PrepForCommandQueueSync(); // throws
@@ -423,7 +423,7 @@ namespace D3D12TranslationLayer
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    void CommandListManager::PrepForCommandQueueSync() // Can't be marked as noexcept as SubmitCommandList(Impl) -> CommandListManager::CloseCommandList(...) throws
+    void CommandListManager::PrepForCommandQueueSync()
     {
         if (HasCommands())
         {
@@ -462,7 +462,7 @@ namespace D3D12TranslationLayer
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    bool CommandListManager::WaitForCompletion() // Can't be marked as noexcept as it throws
+    bool CommandListManager::WaitForCompletion()
     {
         ThrowFailure(EnqueueSetEvent(m_hWaitEvent)); // throws
 
@@ -474,7 +474,7 @@ namespace D3D12TranslationLayer
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    bool CommandListManager::WaitForFenceValue(UINT64 FenceValue) // Can't be marked as noexcept as it throws
+    bool CommandListManager::WaitForFenceValue(UINT64 FenceValue)
     {
         m_NumFlushesWithNoReadback = 0;
 
@@ -482,7 +482,7 @@ namespace D3D12TranslationLayer
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    bool CommandListManager::WaitForFenceValueInternal(bool IsImmediateContextThread, UINT64 FenceValue) // Can't be marked as noexcept as it throws
+    bool CommandListManager::WaitForFenceValueInternal(bool IsImmediateContextThread, UINT64 FenceValue)
     {
         // Command list ID is the value of the fence that will be signaled on submission
         UINT64 CurCmdListID = IsImmediateContextThread ? m_commandListID : GetCommandListIDInterlockedRead();

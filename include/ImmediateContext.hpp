@@ -879,14 +879,14 @@ public:
     HRESULT EnqueueSetEvent(UINT commandListTypeMask, HANDLE hEvent) noexcept;
     HRESULT EnqueueSetEvent(COMMAND_LIST_TYPE commandListType, HANDLE hEvent) noexcept;
     Fence *GetFence(COMMAND_LIST_TYPE type) noexcept;
-    void SubmitCommandList(UINT commandListTypeMask); // Can't be marked as noexcept as SubmitCommandList(Impl) -> CommandListManager::CloseCommandList(...) throws
-    void SubmitCommandList(COMMAND_LIST_TYPE commandListType); // Can't be marked as noexcept as SubmitCommandList(Impl) -> CommandListManager::CloseCommandList(...) throws
+    void SubmitCommandList(UINT commandListTypeMask);
+    void SubmitCommandList(COMMAND_LIST_TYPE commandListType);
 
     // Returns true if synchronization was successful, false likely means device is removed
     bool WaitForCompletion(UINT commandListTypeMask) noexcept;
-    bool WaitForCompletion(COMMAND_LIST_TYPE commandListType); // Can't be marked as noexcept as it throws
-    bool WaitForFenceValue(COMMAND_LIST_TYPE commandListType, UINT64 FenceValue); // Can't be marked as noexcept as it throws
-    bool WaitForFenceValue(COMMAND_LIST_TYPE type, UINT64 FenceValue, bool DoNotWait); // Can't be marked as noexcept as SubmitCommandList throws
+    bool WaitForCompletion(COMMAND_LIST_TYPE commandListType);
+    bool WaitForFenceValue(COMMAND_LIST_TYPE commandListType, UINT64 FenceValue);
+    bool WaitForFenceValue(COMMAND_LIST_TYPE type, UINT64 FenceValue, bool DoNotWait);
 
     ID3D12GraphicsCommandList *GetGraphicsCommandList() noexcept;
     ID3D12VideoDecodeCommandList2 *GetVideoDecodeCommandList() noexcept;
