@@ -7,7 +7,7 @@ namespace D3D12TranslationLayer
 
     SwapChainManager::~SwapChainManager()
     {
-        m_ImmCtx.WaitForCompletion(D3D12TranslationLayer::COMMAND_LIST_TYPE_ALL_MASK);
+        m_ImmCtx.WaitForCompletion( D3D12TranslationLayer::COMMAND_LIST_TYPE_ALL_MASK );
     }
 
     IDXGISwapChain3* SwapChainManager::GetSwapChainForWindow(HWND hwnd, Resource& presentingResource)

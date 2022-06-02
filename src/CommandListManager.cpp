@@ -205,7 +205,7 @@ namespace D3D12TranslationLayer
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    void CommandListManager::SubmitCommandListImpl()
+    void CommandListManager::SubmitCommandListImpl() // throws
     {
         // Walk through the list of active queries
         // and notify them that the command list is being submitted
@@ -216,7 +216,6 @@ namespace D3D12TranslationLayer
             pAsync->Suspend();
         }
 
-        // TODO: Deal with failure from Close()
         CloseCommandList(m_pCommandList.get()); // throws
 
         auto pCommandList = m_pCommandList.get();
