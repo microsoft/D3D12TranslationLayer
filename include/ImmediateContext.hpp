@@ -1276,6 +1276,15 @@ public: // Type
     D3D12_BOX GetBoxFromResource(Resource *pSrc, UINT SrcSubresource);
     D3D12_BOX GetSubresourceBoxFromBox(Resource* pSrc, UINT RequestedSubresource, UINT BaseSubresource, D3D12_BOX const& SrcBox);
 
+    class BltResolveManager
+    {
+        D3D12TranslationLayer::ImmediateContext& m_ImmCtx;
+        std::map<HWND, unique_comptr<Resource>> m_Temps;
+    public:
+        BltResolveManager(D3D12TranslationLayer::ImmediateContext& ImmCtx);
+        Resource* GetBltResolveTempForWindow(HWND hwnd, Resource& presentingResource);
+    } m_BltResolveManager;
+
 private: // methods
     void PreDraw() noexcept(false);
     void PreDispatch() noexcept(false);

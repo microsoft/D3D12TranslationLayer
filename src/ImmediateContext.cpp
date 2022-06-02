@@ -104,6 +104,7 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
     , m_DebugFlags(debugFlags)
 #endif
     , m_bUseRingBufferDescriptorHeaps(args.IsXbox)
+    , m_BltResolveManager(*this)
 {
     UNREFERENCED_PARAMETER(debugFlags);
     memset(m_BlendFactor, 0, sizeof(m_BlendFactor));
@@ -5561,5 +5562,37 @@ void TRANSLATION_API ImmediateContext::SharingContractPresent(_In_ Resource* pRe
     GetCommandListManager(COMMAND_LIST_TYPE::GRAPHICS)->SetNeedSubmitFence();
 }
 
+//----------------------------------------------------------------------------------------------------------------------------------
+ImmediateContext::BltResolveManager::BltResolveManager(D3D12TranslationLayer::ImmediateContext& ImmCtx)
+    : m_ImmCtx(ImmCtx)
+{
+}
+
+//----------------------------------------------------------------------------------------------------------------------------------
+Resource* ImmediateContext::BltResolveManager::GetBltResolveTempForWindow(HWND hwnd, Resource& presentingResource)
+{
+    auto& spTemp = m_Temps[hwnd];
+    auto pResourceDesc = presentingResource.Parent();
+    if (spTemp)
+    {
+        if (spTemp->AppDesc()->Format() != pResourceDesc->m_appDesc.Format() ||
+            spTemp->AppDesc()->Width() != pResourceDesc->m_appDesc.Width() ||
+            spTemp->AppDesc()->Height() != pResourceDesc->m_appDesc.Height())
+        {
+            spTemp.reset();
+        }
+    }
+    if (!spTemp)
+    {
+        auto Desc = *pResourceDesc;
+        Desc.m_appDesc.m_Samples = 1;
+        Desc.m_appDesc.m_Quality = 0;
+        Desc.m_desc12.SampleDesc.Count = 1;
+        Desc.m_desc12.SampleDesc.Quality = 0;
+
+        spTemp = Resource::CreateResource(&m_ImmCtx, Desc, ResourceAllocationContext::ImmediateContextThreadLongLived);
+    }
+    return spTemp.get();
+}
 
 }
