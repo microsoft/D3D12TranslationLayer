@@ -1030,7 +1030,7 @@ namespace D3D12TranslationLayer
         {
             auto outstandingResourceUse = m_Identity->m_OutstandingResources.front();
 
-            if (!m_pParent->WaitForFenceValue(outstandingResourceUse.commandListType, outstandingResourceUse.fenceValue, DoNotWait))
+            if (!m_pParent->WaitForFenceValue(outstandingResourceUse.commandListType, outstandingResourceUse.fenceValue, DoNotWait)) // throws
             {
                 return false;
             }

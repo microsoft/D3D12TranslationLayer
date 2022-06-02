@@ -930,7 +930,7 @@ namespace D3D12TranslationLayer
             [this, ppManagers](COMMAND_LIST_TYPE type)
         {
             // Note: Command list may not have pending commands, but queue may have commands which need to have a signal inserted.
-            ppManagers[(UINT)type]->PrepForCommandQueueSync();
+            ppManagers[(UINT)type]->PrepForCommandQueueSync(); // throws
         };
         auto HasCommandsImpl =
             [this, ppManagers](COMMAND_LIST_TYPE type)

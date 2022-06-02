@@ -205,7 +205,7 @@ namespace D3D12TranslationLayer
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    void CommandListManager::SubmitCommandListImpl()
+    void CommandListManager::SubmitCommandListImpl() // throws
     {
         // Walk through the list of active queries
         // and notify them that the command list is being submitted
@@ -216,8 +216,7 @@ namespace D3D12TranslationLayer
             pAsync->Suspend();
         }
 
-        // TODO: Deal with failure from Close()
-        CloseCommandList(m_pCommandList.get());
+        CloseCommandList(m_pCommandList.get()); // throws
 
         auto pCommandList = m_pCommandList.get();
         
@@ -248,7 +247,7 @@ namespace D3D12TranslationLayer
 #if DBG
         if (m_pParent->DebugFlags() & Debug_WaitOnFlush)
         {
-            WaitForFenceValue(m_commandListID - 1);
+            WaitForFenceValue(m_commandListID - 1); // throws
         }
 #endif
 
@@ -414,21 +413,21 @@ namespace D3D12TranslationLayer
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    UINT64 CommandListManager::EnsureFlushedAndFenced() noexcept
+    UINT64 CommandListManager::EnsureFlushedAndFenced()
     {
         m_NumFlushesWithNoReadback = 0;
-        PrepForCommandQueueSync();
+        PrepForCommandQueueSync(); // throws
         UINT64 FenceValue = GetCommandListID() - 1;
 
         return FenceValue;
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    void CommandListManager::PrepForCommandQueueSync() noexcept
+    void CommandListManager::PrepForCommandQueueSync()
     {
         if (HasCommands())
         {
-            SubmitCommandListImpl();
+            SubmitCommandListImpl(); // throws
         }
         else if (m_bNeedSubmitFence)
         {
@@ -439,7 +438,18 @@ namespace D3D12TranslationLayer
     //----------------------------------------------------------------------------------------------------------------------------------
     HRESULT CommandListManager::EnqueueSetEvent(HANDLE hEvent) noexcept
     {
-        UINT64 FenceValue = EnsureFlushedAndFenced();
+        UINT64 FenceValue = 0;
+        try {
+            FenceValue = EnsureFlushedAndFenced(); // throws
+        }
+        catch (_com_error& e)
+        {
+            return e.Error();
+        }
+        catch (std::bad_alloc&)
+        {
+            return E_OUTOFMEMORY;
+        }
 
 #if DBG
         if (m_pParent->DebugFlags() & Debug_StallExecution)
@@ -452,9 +462,9 @@ namespace D3D12TranslationLayer
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    bool CommandListManager::WaitForCompletion() noexcept
+    bool CommandListManager::WaitForCompletion()
     {
-        ThrowFailure(EnqueueSetEvent(m_hWaitEvent));
+        ThrowFailure(EnqueueSetEvent(m_hWaitEvent)); // throws
 
         PIXNotifyWakeFromFenceSignal(m_hWaitEvent);
         DWORD waitRet = WaitForSingleObject(m_hWaitEvent, INFINITE);
@@ -464,15 +474,15 @@ namespace D3D12TranslationLayer
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    bool CommandListManager::WaitForFenceValue(UINT64 FenceValue) noexcept
+    bool CommandListManager::WaitForFenceValue(UINT64 FenceValue)
     {
         m_NumFlushesWithNoReadback = 0;
 
-        return WaitForFenceValueInternal(true, FenceValue);
+        return WaitForFenceValueInternal(true, FenceValue); // throws
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    bool CommandListManager::WaitForFenceValueInternal(bool IsImmediateContextThread, UINT64 FenceValue) noexcept
+    bool CommandListManager::WaitForFenceValueInternal(bool IsImmediateContextThread, UINT64 FenceValue)
     {
         // Command list ID is the value of the fence that will be signaled on submission
         UINT64 CurCmdListID = IsImmediateContextThread ? m_commandListID : GetCommandListIDInterlockedRead();
@@ -483,7 +493,7 @@ namespace D3D12TranslationLayer
                 assert(CurCmdListID == FenceValue);
                 if (HasCommands())
                 {
-                    SubmitCommandListImpl();
+                    SubmitCommandListImpl(); // throws
                 }
                 else
                 {

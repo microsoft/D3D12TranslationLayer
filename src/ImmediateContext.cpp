@@ -371,7 +371,6 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
 
 bool ImmediateContext::Shutdown() noexcept
 {
-    bool success = true;
     for (UINT i = 0; i < (UINT)COMMAND_LIST_TYPE::MAX_VALID; i++)
     {
         if (m_CommandLists[i])
@@ -380,11 +379,23 @@ bool ImmediateContext::Shutdown() noexcept
             m_CommandLists[i]->DiscardCommandList();
 
             // Make sure any GPU work still in the pipe is finished
-            success = m_CommandLists[i]->WaitForCompletion();
-            if (!success) break;
+            try {
+                if (!m_CommandLists[i]->WaitForCompletion()) // throws
+                {
+                    return false;
+                }
+            }
+            catch (_com_error&)
+            {
+                return false;
+            }
+            catch (std::bad_alloc&)
+            {
+                return false;
+            }
         }
     }
-    return success;
+    return true;
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
@@ -4052,7 +4063,7 @@ bool ImmediateContext::ResourceAllocationFallback(ResourceAllocationContext thre
             auto CommandListManager = GetCommandListManager((COMMAND_LIST_TYPE)i);
             if (CommandListManager)
             {
-                CommandListManager->WaitForFenceValueInternal(ImmediateContextThread, SyncPoint[i]);
+                CommandListManager->WaitForFenceValueInternal(ImmediateContextThread, SyncPoint[i]); // throws
             }
         }
     };
@@ -4078,12 +4089,12 @@ bool ImmediateContext::ResourceAllocationFallback(ResourceAllocationContext thre
     bool freedMemory = false;
     if (SyncPointExists[0])
     {
-        WaitForSyncPoint(SyncPoints[0]);
+        WaitForSyncPoint(SyncPoints[0]); // throws
         freedMemory = WasMemoryFreed(0);
     }
     if (SyncPointExists[1])
     {
-        WaitForSyncPoint(SyncPoints[1]);
+        WaitForSyncPoint(SyncPoints[1]); // throws
         freedMemory |= WasMemoryFreed(1);
     }
 
@@ -4475,7 +4486,7 @@ bool ImmediateContext::SynchronizeForMap(Resource* pResource, UINT Subresource, 
             // Resource either has never been used, or at least never written to.
             return true;
         }
-        return WaitForFenceValue(ExclusiveState.CommandListType, ExclusiveState.FenceValue, DoNotWait);
+        return WaitForFenceValue(ExclusiveState.CommandListType, ExclusiveState.FenceValue, DoNotWait); // throws
     }
     else
     {
@@ -4484,7 +4495,7 @@ bool ImmediateContext::SynchronizeForMap(Resource* pResource, UINT Subresource, 
         for (UINT i = 0; i < (UINT)COMMAND_LIST_TYPE::MAX_VALID; ++i)
         {
             if (SharedState.FenceValues[i] > 0 &&
-                !WaitForFenceValue((COMMAND_LIST_TYPE)i, SharedState.FenceValues[i], DoNotWait))
+                !WaitForFenceValue((COMMAND_LIST_TYPE)i, SharedState.FenceValues[i], DoNotWait)) // throws
             {
                 return false;
             }
@@ -4511,7 +4522,7 @@ bool ImmediateContext::WaitForFenceValue(COMMAND_LIST_TYPE type, UINT64 FenceVal
     }
     else
     {
-        return WaitForFenceValue(type, FenceValue);
+        return WaitForFenceValue(type, FenceValue); // throws
     }
 }
 
@@ -5262,7 +5273,17 @@ HRESULT TRANSLATION_API ImmediateContext::ResolveSharedResource(Resource* pResou
         assert(ExclusiveState.IsMostRecentlyExclusiveState && ExclusiveState.CommandListType == COMMAND_LIST_TYPE::GRAPHICS);
         if (ExclusiveState.FenceValue == GetCommandListID(ExclusiveState.CommandListType))
         {
-            GetCommandListManager(COMMAND_LIST_TYPE::GRAPHICS)->PrepForCommandQueueSync();
+            try {
+                GetCommandListManager(COMMAND_LIST_TYPE::GRAPHICS)->PrepForCommandQueueSync(); // throws
+            }
+            catch (_com_error& e)
+            {
+                return e.Error();
+            }
+            catch (std::bad_alloc&)
+            {
+                return E_OUTOFMEMORY;
+            }
             break;
         }
     }

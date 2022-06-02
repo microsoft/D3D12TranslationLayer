@@ -1412,7 +1412,18 @@ inline HRESULT ImmediateContext::EnqueueSetEvent(UINT commandListTypeMask, HANDL
         if ((commandListTypeMask & (1 << i)) && m_CommandLists[i])
         {
             pFences[nLists] = m_CommandLists[i]->GetFence()->Get();
-            FenceValues[nLists] = m_CommandLists[i]->EnsureFlushedAndFenced();
+            try {
+                FenceValues[nLists] = m_CommandLists[i]->EnsureFlushedAndFenced(); // throws
+            }
+            catch (_com_error& e)
+            {
+                return e.Error();
+            }
+            catch (std::bad_alloc&)
+            {
+                return E_OUTOFMEMORY;
+            }
+
             ++nLists;
         }
     }
@@ -1462,11 +1473,11 @@ inline bool ImmediateContext::WaitForCompletion(UINT commandListTypeMask) noexce
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-inline bool ImmediateContext::WaitForCompletion(COMMAND_LIST_TYPE commandListType) noexcept
+inline bool ImmediateContext::WaitForCompletion(COMMAND_LIST_TYPE commandListType)
 {
     if (commandListType != COMMAND_LIST_TYPE::UNKNOWN  &&  m_CommandLists[(UINT)commandListType])
     {
-        return m_CommandLists[(UINT)commandListType]->WaitForCompletion();
+        return m_CommandLists[(UINT)commandListType]->WaitForCompletion(); // throws
     }
     else
     {
@@ -1475,11 +1486,11 @@ inline bool ImmediateContext::WaitForCompletion(COMMAND_LIST_TYPE commandListTyp
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-inline bool ImmediateContext::WaitForFenceValue(COMMAND_LIST_TYPE commandListType, UINT64 FenceValue) noexcept
+inline bool ImmediateContext::WaitForFenceValue(COMMAND_LIST_TYPE commandListType, UINT64 FenceValue)
 {
     if (commandListType != COMMAND_LIST_TYPE::UNKNOWN  &&  m_CommandLists[(UINT)commandListType])
     {
-        return m_CommandLists[(UINT)commandListType]->WaitForFenceValue(FenceValue);
+        return m_CommandLists[(UINT)commandListType]->WaitForFenceValue(FenceValue); // throws
     }
     else
     {
