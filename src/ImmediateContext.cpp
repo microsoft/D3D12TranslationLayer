@@ -5274,7 +5274,17 @@ HRESULT TRANSLATION_API ImmediateContext::ResolveSharedResource(Resource* pResou
         assert(ExclusiveState.IsMostRecentlyExclusiveState && ExclusiveState.CommandListType == COMMAND_LIST_TYPE::GRAPHICS);
         if (ExclusiveState.FenceValue == GetCommandListID(ExclusiveState.CommandListType))
         {
-            GetCommandListManager(COMMAND_LIST_TYPE::GRAPHICS)->PrepForCommandQueueSync(); // throws
+            try {
+                GetCommandListManager(COMMAND_LIST_TYPE::GRAPHICS)->PrepForCommandQueueSync(); // throws
+            }
+            catch (_com_error& e)
+            {
+                return e.Error();
+            }
+            catch (std::bad_alloc&)
+            {
+                return E_OUTOFMEMORY;
+            }
             break;
         }
     }
