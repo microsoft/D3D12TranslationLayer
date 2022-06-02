@@ -7,17 +7,17 @@ namespace D3D12TranslationLayer
 
     SwapChainManager::~SwapChainManager()
     {
-        bool success = false;
+        // Stop exception here, as destructor is noexcept
         try {
-            success = m_ImmCtx.WaitForCompletion(D3D12TranslationLayer::COMMAND_LIST_TYPE_ALL_MASK); // throws
+            m_ImmCtx.WaitForCompletion(D3D12TranslationLayer::COMMAND_LIST_TYPE_ALL_MASK); // throws
         }
         catch (_com_error&)
         {
-            success = false;
+            // success = false;
         }
         catch (std::bad_alloc&)
         {
-            success = false;
+            // success = false;
         }
     }
 
