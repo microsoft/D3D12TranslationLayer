@@ -224,9 +224,9 @@ namespace D3D12TranslationLayer
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    VideoDecode::~VideoDecode() noexcept(false)
+    VideoDecode::~VideoDecode() noexcept
     {
-        m_pParent->Flush(COMMAND_LIST_TYPE_VIDEO_DECODE_MASK); // throws
+        m_pParent->Flush(COMMAND_LIST_TYPE_VIDEO_DECODE_MASK);
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------

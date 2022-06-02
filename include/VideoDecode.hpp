@@ -118,7 +118,7 @@ namespace D3D12TranslationLayer
     public:
         friend class ImmediateContext;
         VideoDecode(_In_ ImmediateContext *pDevice, VideoDecodeCreationArgs const& args);
-        ~VideoDecode() noexcept(false);
+        virtual ~VideoDecode() noexcept;
 
         static HRESULT GetVideoDecoderBufferTypeCount(_In_ const VIDEO_DECODE_DESC *pDesc, _Out_ UINT *pBufferTypeCount) noexcept;
         static void GetVideoDecoderBufferInfo(_In_ const VIDEO_DECODE_DESC *pDesc, _In_ UINT Index, _Out_ VIDEO_DECODE_BUFFER_TYPE *pType, _Out_ UINT *pSize, bool IsXbox);
@@ -172,10 +172,6 @@ namespace D3D12TranslationLayer
     class BatchedVideoDecode : public BatchedDeviceChildImpl<VideoDecode>
     {
     public:
-        ~BatchedVideoDecode() noexcept(false)
-        {
-        }
-
         BatchedVideoDecode(BatchedContext& Context, VideoDecodeCreationArgs const& Args)
             : BatchedDeviceChildImpl(Context, Args)
         {
