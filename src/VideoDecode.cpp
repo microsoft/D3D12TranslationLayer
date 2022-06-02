@@ -226,7 +226,18 @@ namespace D3D12TranslationLayer
     //----------------------------------------------------------------------------------------------------------------------------------
     VideoDecode::~VideoDecode() noexcept
     {
-        m_pParent->Flush(COMMAND_LIST_TYPE_VIDEO_DECODE_MASK);
+        // Stop exception here, as destructor is noexcept
+        try {
+            m_pParent->Flush(COMMAND_LIST_TYPE_VIDEO_DECODE_MASK); // throws
+        }
+        catch (_com_error&)
+        {
+            // success = false;
+        }
+        catch (std::bad_alloc&)
+        {
+            // success = false;
+        }
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
