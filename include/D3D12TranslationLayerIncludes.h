@@ -25,6 +25,7 @@
 #include <formatdesc.hpp>
 #include <dxgiColorSpaceHelper.h>
 
+#include "MaxFrameLatencyHelper.hpp"
 #include "Shader.hpp"
 #include "Sampler.hpp"
 #include "View.hpp"

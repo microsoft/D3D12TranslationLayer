@@ -1499,6 +1499,8 @@ public: // variables
         return m_residencyManagerWrapper.m_residencyManager;
     }
     ResourceStateManager& GetResourceStateManager() { return m_ResourceStateManager; }
+
+    MaxFrameLatencyHelper m_MaxFrameLatencyHelper;
 private: // variables
     ResourceStateManager m_ResourceStateManager;
 #if TRANSLATION_LAYER_DBG

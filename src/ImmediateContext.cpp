@@ -129,6 +129,8 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
         m_DeferredDeletionQueueManager.InitLock();
     }
 
+    m_MaxFrameLatencyHelper.Init(this);
+
     D3D12TranslationLayer::InitializeListHead(&m_ActiveQueryList);
 
     LUID adapterLUID = pDevice->GetAdapterLuid();
