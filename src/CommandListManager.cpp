@@ -197,23 +197,23 @@ namespace D3D12TranslationLayer
         }
     }
 
-    HRESULT CommandListManager::BeginSplitExecuteCommandQueueCommand()
+    HRESULT CommandListManager::PreExecuteCommandQueueCommand()
     {
         m_bNeedSubmitFence = true;
         if (m_pParent->IsResidencyManagementEnabled())
         {
             m_pResidencySet->Close();
-            return m_pParent->GetResidencyManager().BeginSplitExecuteCommandQueueCommand(m_pCommandQueue.get(), m_pResidencySet.get());
+            return m_pParent->GetResidencyManager().PreExecuteCommandQueueCommand(m_pCommandQueue.get(), m_pResidencySet.get());
         }
         return S_OK;
     }
 
-    HRESULT CommandListManager::EndSplitExecuteCommandQueueCommand()
+    HRESULT CommandListManager::PostExecuteCommandQueueCommand()
     {
         HRESULT hr = S_OK;
         if (m_pParent->IsResidencyManagementEnabled())
         {
-            hr = m_pParent->GetResidencyManager().EndSplitExecuteCommandQueueCommand(m_pCommandQueue.get());
+            hr = m_pParent->GetResidencyManager().PostExecuteCommandQueueCommand(m_pCommandQueue.get());
             ResetResidencySet();
         }
         return hr;

@@ -42,8 +42,8 @@ namespace D3D12TranslationLayer
             }
         }
 
-        HRESULT BeginSplitExecuteCommandQueueCommand(); //throws
-        HRESULT EndSplitExecuteCommandQueueCommand(); //throws
+        HRESULT PreExecuteCommandQueueCommand(); //throws
+        HRESULT PostExecuteCommandQueueCommand(); //throws
 
         void SubmitCommandList();
         void InitCommandList();

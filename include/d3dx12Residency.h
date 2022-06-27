@@ -993,7 +993,7 @@ namespace D3DX12Residency
 				return ExecuteMasterSet(Queue, pMasterSet, func);
 			}
 
-			HRESULT BeginSplitExecuteCommandQueueCommand(ID3D12CommandQueue* Queue, ResidencySet* Set)
+			HRESULT PreExecuteCommandQueueCommand(ID3D12CommandQueue* Queue, ResidencySet* Set)
 			{
 				ResidencySet* pMasterSet = nullptr;
 				HRESULT hr = GetMasterSet(&Set, 1, &pMasterSet);
@@ -1006,7 +1006,7 @@ namespace D3DX12Residency
 				return hr;
 			}
 
-			HRESULT EndSplitExecuteCommandQueueCommand(ID3D12CommandQueue* Queue)
+			HRESULT PostExecuteCommandQueueCommand(ID3D12CommandQueue* Queue)
 			{
 				Internal::Fence* QueueFence = nullptr;
 				HRESULT hr = GetFence(Queue, QueueFence);
@@ -1766,14 +1766,14 @@ namespace D3DX12Residency
 			return Manager.SubmitCommandQueueCommand(Queue, ResidencySet, func);
 		}
 
-		FORCEINLINE HRESULT BeginSplitExecuteCommandQueueCommand(ID3D12CommandQueue* Queue, ResidencySet* ResidencySet)
+		FORCEINLINE HRESULT PreExecuteCommandQueueCommand(ID3D12CommandQueue* Queue, ResidencySet* ResidencySet)
 		{
-			return Manager.BeginSplitExecuteCommandQueueCommand(Queue, ResidencySet);
+			return Manager.PreExecuteCommandQueueCommand(Queue, ResidencySet);
 		}
 
-		FORCEINLINE HRESULT EndSplitExecuteCommandQueueCommand(ID3D12CommandQueue* Queue)
+		FORCEINLINE HRESULT PostExecuteCommandQueueCommand(ID3D12CommandQueue* Queue)
 		{
-			return Manager.EndSplitExecuteCommandQueueCommand(Queue);
+			return Manager.PostExecuteCommandQueueCommand(Queue);
 		}
 
 		FORCEINLINE ResidencySet* CreateResidencySet()
