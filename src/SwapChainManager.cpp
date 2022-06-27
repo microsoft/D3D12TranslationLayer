@@ -55,32 +55,4 @@ namespace D3D12TranslationLayer
         }
         return spSwapChain.get();
     }
-
-    void SwapChainManager::SetMaximumFrameLatency( UINT MaxFrameLatency )
-    {
-        m_MaximumFrameLatency = MaxFrameLatency;
-    }
-
-    bool SwapChainManager::IsMaximumFrameLatencyReached()
-    {
-        UINT64 CompletedFenceValue = m_ImmCtx.GetCompletedFenceValue( D3D12TranslationLayer::COMMAND_LIST_TYPE::GRAPHICS );
-        while (m_PresentFenceValuesBegin != m_PresentFenceValuesEnd &&
-                *m_PresentFenceValuesBegin <= CompletedFenceValue)
-        {
-            ++m_PresentFenceValuesBegin;
-        }
-        return std::distance( m_PresentFenceValuesBegin, m_PresentFenceValuesEnd ) >= (ptrdiff_t)m_MaximumFrameLatency;
-    }
-
-    void SwapChainManager::WaitForMaximumFrameLatency()
-    {
-        // Looping, because max frame latency can be dropped, and we may
-        // need to wait for multiple presents to complete here.
-        while (IsMaximumFrameLatencyReached())
-        {
-            m_ImmCtx.WaitForFenceValue(
-                D3D12TranslationLayer::COMMAND_LIST_TYPE::GRAPHICS,
-                *m_PresentFenceValuesBegin ); // throws
-        }
-    }
 }

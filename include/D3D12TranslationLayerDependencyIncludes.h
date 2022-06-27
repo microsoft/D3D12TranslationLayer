@@ -30,6 +30,7 @@
 #include <directx/d3dx12.h>
 #include <d3d11_3.h>
 #include <dxgi1_5.h>
+#include <d3dkmthk.h>
 
 //STL
 #include <utility>

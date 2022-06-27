@@ -104,6 +104,7 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
     , m_DebugFlags(debugFlags)
 #endif
     , m_bUseRingBufferDescriptorHeaps(args.IsXbox)
+    , m_BltResolveManager(*this)
 {
     UNREFERENCED_PARAMETER(debugFlags);
     memset(m_BlendFactor, 0, sizeof(m_BlendFactor));
@@ -128,6 +129,8 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
     {
         m_DeferredDeletionQueueManager.InitLock();
     }
+
+    m_MaxFrameLatencyHelper.Init(this);
 
     D3D12TranslationLayer::InitializeListHead(&m_ActiveQueryList);
 
@@ -5559,5 +5562,168 @@ void TRANSLATION_API ImmediateContext::SharingContractPresent(_In_ Resource* pRe
     GetCommandListManager(COMMAND_LIST_TYPE::GRAPHICS)->SetNeedSubmitFence();
 }
 
+//----------------------------------------------------------------------------------------------------------------------------------
+void TRANSLATION_API ImmediateContext::Present(
+    _In_reads_(uSrcSurfaces) PresentSurface const* pSrcSurfaces,
+    UINT numSrcSurfaces,
+    _In_opt_ Resource* pDest,
+    UINT flipInterval,
+    UINT vidPnSourceId,
+    _In_ D3DKMT_PRESENT* pKMTPresent,
+    bool bDoNotSequence,
+    std::function<HRESULT(PresentCBArgs&)> pfnPresentCb)
+{
+    if (bDoNotSequence)
+    {
+        // Blt with DoNotSequence is not supported in DX9/DX11. Supporting this would require extra tracking to
+        // ensure defer deletion works correctly
+        if (pDest)
+        {
+            ThrowFailure(E_INVALIDARG);
+        }
+    }
+    else
+    {
+        if (!pKMTPresent->Flags.RedirectedFlip)
+        {
+            m_MaxFrameLatencyHelper.WaitForMaximumFrameLatency();
+        }
+
+        PresentSurface PresentOverride;
+        if (pDest)
+        {
+            assert(numSrcSurfaces == 1);
+            Resource* pSource = pSrcSurfaces->m_pResource;
+            if (pSource->AppDesc()->Samples() > 1)
+            {
+                Resource* pTemp = m_BltResolveManager.GetBltResolveTempForWindow(pKMTPresent->hWindow, *pSource);
+                ResourceResolveSubresource(pTemp, 0, pSource, pSrcSurfaces->m_subresource, pSource->AppDesc()->Format());
+                PresentOverride.m_pResource = pTemp;
+                PresentOverride.m_subresource = 0;
+                numSrcSurfaces = 1;
+                pSrcSurfaces = &PresentOverride;
+            }
+        }
+
+        for (UINT i = 0; i < numSrcSurfaces; i++)
+        {
+            const UINT appSubresource = pSrcSurfaces[i].m_subresource;
+            Resource* pResource = pSrcSurfaces[i].m_pResource;
+
+            for (UINT iPlane = 0; iPlane < pResource->AppDesc()->NonOpaquePlaneCount(); ++iPlane)
+            {
+                UINT subresourceIndex = ConvertSubresourceIndexAddPlane(appSubresource, pResource->AppDesc()->SubresourcesPerPlane(), iPlane);
+
+                GetResourceStateManager().TransitionSubresource(pResource,
+                    subresourceIndex,
+                    D3D12_RESOURCE_STATE_PRESENT,
+                    COMMAND_LIST_TYPE::GRAPHICS,
+                    SubresourceTransitionFlags::StateMatchExact);
+            }
+        }
+
+        if (pDest)
+        {
+            GetResourceStateManager().TransitionResource(pDest, D3D12_RESOURCE_STATE_COPY_DEST);
+        }
+        
+        GetResourceStateManager().ApplyAllResourceTransitions();
+
+        PresentCBArgs presentArgs = {};
+        presentArgs.pGraphicsCommandQueue = GetCommandQueue(COMMAND_LIST_TYPE::GRAPHICS);
+        presentArgs.pGraphicsCommandList = GetCommandList(COMMAND_LIST_TYPE::GRAPHICS);
+        presentArgs.pSrcSurfaces = pSrcSurfaces;
+        presentArgs.numSrcSurfaces = numSrcSurfaces;
+        presentArgs.pDest = pDest;
+        presentArgs.flipInterval = flipInterval;
+        presentArgs.vidPnSourceId = vidPnSourceId;
+        presentArgs.pKMTPresent = pKMTPresent;
+
+        ThrowFailure(pfnPresentCb(presentArgs));
+
+        GetCommandListManager(COMMAND_LIST_TYPE::GRAPHICS)->PrepForCommandQueueSync(); // throws
+    }
+}
+
+HRESULT TRANSLATION_API ImmediateContext::CloseAndSubmitGraphicsCommandListForPresent(
+    BOOL commandsAdded,
+    _In_reads_(numSrcSurfaces) const PresentSurface* pSrcSurfaces,
+    UINT numSrcSurfaces,
+    _In_opt_ Resource* pDest,
+    _In_ D3DKMT_PRESENT* pKMTPresent)
+{
+    const auto commandListType = COMMAND_LIST_TYPE::GRAPHICS;
+    if (commandsAdded)
+    {
+        AdditionalCommandsAdded(commandListType);
+    }
+    UINT commandListMask = D3D12TranslationLayer::COMMAND_LIST_TYPE_GRAPHICS_MASK;
+    if (!Flush(commandListMask))
+    {
+        CloseCommandList(commandListMask);
+        ResetCommandList(commandListMask);
+    }
+
+    auto pSharingContract = GetCommandListManager(commandListType)->GetSharingContract();
+    if (pSharingContract)
+    {
+        for (UINT i = 0; i < numSrcSurfaces; ++i)
+        {
+            pSharingContract->Present(pSrcSurfaces[i].m_pResource->GetUnderlyingResource(), pSrcSurfaces[i].m_subresource, pKMTPresent->hWindow);
+        }
+    }
+
+    // These must be marked after the flush so that they are defer deleted
+    // Don't mark these for residency management as these aren't part of the next command list
+    UINT64 CommandListID = GetCommandListID(commandListType);
+    if (pDest)
+    {
+        pDest->UsedInCommandList(commandListType, CommandListID);
+    }
+    for (UINT i = 0; i < numSrcSurfaces; i++)
+    {
+        D3D12TranslationLayer::Resource* pResource = pSrcSurfaces[i].m_pResource;
+        pResource->UsedInCommandList(commandListType, CommandListID);
+    }
+    if (!pKMTPresent->Flags.RedirectedFlip)
+    {
+        m_MaxFrameLatencyHelper.RecordPresentFenceValue(CommandListID);
+    }
+
+    return S_OK;
+}
+
+//----------------------------------------------------------------------------------------------------------------------------------
+ImmediateContext::BltResolveManager::BltResolveManager(D3D12TranslationLayer::ImmediateContext& ImmCtx)
+    : m_ImmCtx(ImmCtx)
+{
+}
+
+//----------------------------------------------------------------------------------------------------------------------------------
+Resource* ImmediateContext::BltResolveManager::GetBltResolveTempForWindow(HWND hwnd, Resource& presentingResource)
+{
+    auto& spTemp = m_Temps[hwnd];
+    auto pResourceDesc = presentingResource.Parent();
+    if (spTemp)
+    {
+        if (spTemp->AppDesc()->Format() != pResourceDesc->m_appDesc.Format() ||
+            spTemp->AppDesc()->Width() != pResourceDesc->m_appDesc.Width() ||
+            spTemp->AppDesc()->Height() != pResourceDesc->m_appDesc.Height())
+        {
+            spTemp.reset();
+        }
+    }
+    if (!spTemp)
+    {
+        auto Desc = *pResourceDesc;
+        Desc.m_appDesc.m_Samples = 1;
+        Desc.m_appDesc.m_Quality = 0;
+        Desc.m_desc12.SampleDesc.Count = 1;
+        Desc.m_desc12.SampleDesc.Quality = 0;
+
+        spTemp = Resource::CreateResource(&m_ImmCtx, Desc, ResourceAllocationContext::ImmediateContextThreadLongLived);
+    }
+    return spTemp.get();
+}
 
 }

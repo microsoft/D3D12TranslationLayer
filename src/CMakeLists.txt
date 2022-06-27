@@ -14,6 +14,7 @@ set(SRC
 	FormatDescImpl.cpp
 	ImmediateContext.cpp
 	Main.cpp
+	MaxFrameLatencyHelper.cpp
 	PipelineState.cpp
 	Query.cpp
 	Resource.cpp
@@ -51,6 +52,7 @@ set (INC
 	../include/Fence.hpp
 	../include/FormatDesc.hpp
 	../include/ImmediateContext.hpp
+	../include/MaxFrameLatencyHelper.hpp
 	../include/pch.h
 	../include/PipelineState.hpp
 	../include/PrecompiledShaders.h

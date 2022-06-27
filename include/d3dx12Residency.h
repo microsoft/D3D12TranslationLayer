@@ -993,6 +993,31 @@ namespace D3DX12Residency
 				return ExecuteMasterSet(Queue, pMasterSet, func);
 			}
 
+			HRESULT PreExecuteCommandQueueCommand(ID3D12CommandQueue* Queue, ResidencySet* Set)
+			{
+				ResidencySet* pMasterSet = nullptr;
+				HRESULT hr = GetMasterSet(&Set, 1, &pMasterSet);
+				if (FAILED(hr))
+				{
+					return hr;
+				}
+				Internal::Fence* fence = nullptr;
+				hr = PrepareToExecuteMasterSet(Queue, pMasterSet, fence);
+				return hr;
+			}
+
+			HRESULT PostExecuteCommandQueueCommand(ID3D12CommandQueue* Queue)
+			{
+				Internal::Fence* QueueFence = nullptr;
+				HRESULT hr = GetFence(Queue, QueueFence);
+				if (!FAILED(hr))
+				{
+					return hr;
+				}
+				hr = SignalFence(Queue, QueueFence);
+				return hr;
+			}
+
 			HRESULT GetCurrentGPUSyncPoint(ID3D12CommandQueue* Queue, UINT64 *pGPUSyncPoint)
 			{
 				Internal::Fence* QueueFence = nullptr;
@@ -1146,12 +1171,11 @@ namespace D3DX12Residency
 				return S_OK;
 			}
 
-			template <typename TFunc>
-			HRESULT ExecuteMasterSet(ID3D12CommandQueue* Queue, ResidencySet* pMasterSet, TFunc&& func)
+			HRESULT PrepareToExecuteMasterSet(ID3D12CommandQueue* Queue, ResidencySet* pMasterSet, _Outptr_ Internal::Fence*& QueueFence)
 			{
 				HRESULT hr = S_OK;
 
-				Internal::Fence* QueueFence = nullptr;
+				QueueFence = nullptr;
 				hr = GetFence(Queue, QueueFence);
 
 				if (SUCCEEDED(hr))
@@ -1185,7 +1209,20 @@ namespace D3DX12Residency
 							AsyncThreadFence.Increment();
 						}
 					}
+				}
+				return hr;
+			}
 
+			template <typename TFunc>
+			HRESULT ExecuteMasterSet(ID3D12CommandQueue* Queue, ResidencySet* pMasterSet, TFunc&& func)
+			{
+				HRESULT hr = S_OK;
+
+				Internal::Fence* QueueFence = nullptr;
+				hr = PrepareToExecuteMasterSet(Queue, pMasterSet, QueueFence);
+
+				if (SUCCEEDED(hr))
+				{
 					func();
 
 					if (SUCCEEDED(hr))
@@ -1727,6 +1764,16 @@ namespace D3DX12Residency
 		FORCEINLINE HRESULT SubmitCommandQueueCommand(ID3D12CommandQueue* Queue, TFunc&& func, ResidencySet* ResidencySet)
 		{
 			return Manager.SubmitCommandQueueCommand(Queue, ResidencySet, func);
+		}
+
+		FORCEINLINE HRESULT PreExecuteCommandQueueCommand(ID3D12CommandQueue* Queue, ResidencySet* ResidencySet)
+		{
+			return Manager.PreExecuteCommandQueueCommand(Queue, ResidencySet);
+		}
+
+		FORCEINLINE HRESULT PostExecuteCommandQueueCommand(ID3D12CommandQueue* Queue)
+		{
+			return Manager.PostExecuteCommandQueueCommand(Queue);
 		}
 
 		FORCEINLINE ResidencySet* CreateResidencySet()
