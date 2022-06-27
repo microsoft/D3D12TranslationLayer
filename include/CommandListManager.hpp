@@ -42,6 +42,9 @@ namespace D3D12TranslationLayer
             }
         }
 
+        HRESULT BeginSplitExecuteCommandQueueCommand(); //throws
+        HRESULT EndSplitExecuteCommandQueueCommand(); //throws
+
         void SubmitCommandList();
         void InitCommandList();
         void ResetCommandList();
