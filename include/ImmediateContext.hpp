@@ -795,6 +795,27 @@ private:
 
 using RenameResourceSet = std::deque<unique_comptr<Resource>>;
 
+struct PresentSurface
+{
+    PresentSurface() : m_pResource(nullptr), m_subresource(0) {}
+    PresentSurface(Resource* pResource, UINT subresource = 0) : m_pResource(pResource), m_subresource(subresource) {}
+
+    Resource* m_pResource;
+    UINT m_subresource;
+};
+
+struct PresentCBArgs
+{
+    _In_ ID3D12CommandQueue* pGraphicsCommandQueue;
+    _In_ ID3D12CommandList* pGraphicsCommandList;
+    _In_reads_(numSrcSurfaces) const PresentSurface* pSrcSurfaces;
+    UINT numSrcSurfaces;
+    _In_opt_ Resource* pDest;
+    UINT flipInterval;
+    UINT vidPnSourceId;
+    _In_ D3DKMT_PRESENT* pKMTPresent;
+};
+
 class ImmediateContext
 {
 public:
@@ -1193,6 +1214,21 @@ public:
     void TRANSLATION_API EndEvent();
     
     void TRANSLATION_API SharingContractPresent(_In_ Resource* pResource);
+    void TRANSLATION_API Present(
+        _In_reads_(numSrcSurfaces) PresentSurface const* pSrcSurfaces,
+        UINT numSrcSurfaces,
+        _In_opt_ Resource* pDest,
+        UINT flipInterval,
+        UINT vidPnSourceId,
+        _In_ D3DKMT_PRESENT* pKMTPresent,
+        bool bDoNotSequence,
+        std::function<HRESULT(PresentCBArgs&)> pfnPresentCb);
+    HRESULT TRANSLATION_API CloseAndSubmitGraphicsCommandListForPresent(
+        BOOL commandsAdded,
+        _In_reads_(numSrcSurfaces) const PresentSurface* pSrcSurfaces, 
+        UINT numSrcSurfaces,
+        _In_opt_ Resource* pDest,
+        _In_ D3DKMT_PRESENT* pKMTPresent);
 
 public:
     void TRANSLATION_API GetSharedGDIHandle(_In_ Resource *pResource, _Out_ HANDLE *pHandle);
