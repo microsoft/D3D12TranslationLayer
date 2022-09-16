@@ -1095,14 +1095,6 @@ namespace D3DX12Residency
 			{
 				HRESULT hr = S_OK;
 
-				DXCoreAdapterMemoryBudget LocalMemory;
-				ZeroMemory(&LocalMemory, sizeof(LocalMemory));
-				GetCurrentBudget(&LocalMemory, DXCoreSegmentGroup::Local);
-
-				DXCoreAdapterMemoryBudget NonLocalMemory;
-				ZeroMemory(&NonLocalMemory, sizeof(NonLocalMemory));
-				GetCurrentBudget(&NonLocalMemory, DXCoreSegmentGroup::NonLocal);
-
 				UINT64 TotalSizeNeeded = 0;
 
 				UINT32 MaxObjectsReferenced = 0;
@@ -1162,10 +1154,21 @@ namespace D3DX12Residency
 
 				// This set of commandlists can't possibly fit within the budget, they need to be split up. If the number of command lists is 1 there is
 				// nothing we can do
-				if (Count > 1 && TotalSizeNeeded > LocalMemory.budget + NonLocalMemory.budget)
+				if (Count > 1)
 				{
-					delete(pMasterSet);
-					return S_FALSE;
+					DXCoreAdapterMemoryBudget LocalMemory;
+					ZeroMemory(&LocalMemory, sizeof(LocalMemory));
+					GetCurrentBudget(&LocalMemory, DXCoreSegmentGroup::Local);
+
+					DXCoreAdapterMemoryBudget NonLocalMemory;
+					ZeroMemory(&NonLocalMemory, sizeof(NonLocalMemory));
+					GetCurrentBudget(&NonLocalMemory, DXCoreSegmentGroup::NonLocal);
+
+					if (TotalSizeNeeded > LocalMemory.budget + NonLocalMemory.budget)
+					{
+						delete( pMasterSet );
+						return S_FALSE;
+					}
 				}
 				*ppResidencySet = pMasterSet;
 				return S_OK;
