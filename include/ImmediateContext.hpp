@@ -2,10 +2,16 @@
 // Licensed under the MIT License.
 #pragma once
 
+#include "Allocator.h" 
+#include "Resource.hpp"
+#include "Util.hpp"
+
 namespace D3D12TranslationLayer
 {
-class Resource;
 class CommandListManager;
+class Resource;
+class ResourceCache;
+class ViewBase;
 
 struct TranslationLayerCallbacks
 {
@@ -38,7 +44,7 @@ public:
     TResourceType RetrieveFromPool(UINT64 CurrentFenceValue, PFNCreateNew pfnCreateNew, const CreationArgType&... CreationArgs) noexcept(false)
     {
         auto lock = m_pLock ? std::unique_lock(*m_pLock) : std::unique_lock<std::mutex>();
-        TPool::iterator Head = m_Pool.begin();
+        auto Head = m_Pool.begin();
         if (Head == m_Pool.end() || (CurrentFenceValue < Head->first))
         {
             return std::move(pfnCreateNew(CreationArgs...)); // throw( _com_error )
@@ -54,7 +60,7 @@ public:
     {
         auto lock = m_pLock ? std::unique_lock(*m_pLock) : std::unique_lock<std::mutex>();
 
-        TPool::iterator Head = m_Pool.begin();
+        auto Head = m_Pool.begin();
 
         if (Head == m_Pool.end() || (CurrentFenceValue < Head->first))
         {
@@ -586,7 +592,11 @@ enum EDirtyBits : UINT64
     e_ReassertOnNewCommandList    = e_GraphicsStateDirty | e_ComputeStateDirty,
 };
 
+class Fence;
+class HeapSuballocationBlock;
 class ImmediateContext;
+struct DeferredWait;
+struct ResidencyManagedObjectWrapper;
 
 struct RetiredObject
 {
