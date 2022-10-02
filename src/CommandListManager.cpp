@@ -488,7 +488,9 @@ namespace D3D12TranslationLayer
     {
         ThrowFailure(EnqueueSetEvent(m_hWaitEvent)); // throws
 
+#ifdef USE_PIX
         PIXNotifyWakeFromFenceSignal(m_hWaitEvent);
+#endif
         DWORD waitRet = WaitForSingleObject(m_hWaitEvent, INFINITE);
         UNREFERENCED_PARAMETER(waitRet);
         assert(waitRet == WAIT_OBJECT_0);
@@ -546,7 +548,9 @@ namespace D3D12TranslationLayer
         }
 #endif
 
+#ifdef USE_PIX
         PIXNotifyWakeFromFenceSignal(m_hWaitEvent);
+#endif
         DWORD waitRet = WaitForSingleObject(m_hWaitEvent, INFINITE);
         UNREFERENCED_PARAMETER(waitRet);
         assert(waitRet == WAIT_OBJECT_0);

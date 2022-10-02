@@ -345,11 +345,11 @@ namespace D3D12TranslationLayer
             return reinterpret_cast<T*const*>(this);
         }
 
-        using unique_ptr::release;
-        using unique_ptr::get;
-        using unique_ptr::operator->;
-        using unique_ptr::operator*;
-        using unique_ptr::operator bool;
+        using parent_t::release;
+        using parent_t::get;
+        using parent_t::operator->;
+        using parent_t::operator*;
+        using parent_t::operator bool;
 
     private:
         unique_comptr& operator=(unique_comptr const&) = delete;

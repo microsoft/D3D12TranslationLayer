@@ -135,7 +135,7 @@ namespace D3D12TranslationLayer
                 { ShaderStage(pHS) },
                 { ShaderStage(pDS) } }
             , m_UAVBucket(NonCBBindingCountToBucket(NumUAVBindings(pVS, pPS, pGS, pHS, pDS)))
-            , m_Flags(ComputeFlags(bRequiresBufferOutOfBoundsHandling, std::array<SShaderDecls const*, 5>{ pPS, pVS, pGS, pHS, pDS }))
+            , m_Flags(ComputeFlags<5>(bRequiresBufferOutOfBoundsHandling, std::array<SShaderDecls const*, 5>{ pPS, pVS, pGS, pHS, pDS }))
             , m_NumSRVSpacesUsed{
                 pPS ? pPS->m_NumSRVSpacesUsed : 1u,
                 pVS ? pVS->m_NumSRVSpacesUsed : 1u,
@@ -148,7 +148,7 @@ namespace D3D12TranslationLayer
             : m_ShaderStages{
                 { ShaderStage(pCS) } }
                 , m_UAVBucket(NonCBBindingCountToBucket(pCS ? (UINT)pCS->m_UAVDecls.size() : 0u))
-            , m_Flags(ComputeFlags(bRequiresBufferOutOfBoundsHandling, std::array<SShaderDecls const*, 1>{ pCS }))
+            , m_Flags(ComputeFlags<1>(bRequiresBufferOutOfBoundsHandling, std::array<SShaderDecls const*, 1>{ pCS }))
             , m_NumSRVSpacesUsed{ pCS ? pCS->m_NumSRVSpacesUsed : 1u }
         {
         }

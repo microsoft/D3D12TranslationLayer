@@ -241,7 +241,7 @@ namespace D3D12TranslationLayer
 
     public:
         CViewBoundState() noexcept(false)
-            : CBoundState()
+            : CBoundState<TBindable, NumBindSlots>()
         {
             m_ShaderData.reserve(NumBindings); // throw( bad_alloc )
         }
