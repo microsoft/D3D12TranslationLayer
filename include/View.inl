@@ -84,7 +84,7 @@ namespace D3D12TranslationLayer
 
     //----------------------------------------------------------------------------------------------------------------------------------
     template<typename TIface>
-    typename const View<TIface>::TDesc12& View<TIface>::GetDesc12() noexcept
+    const typename View<TIface>::TDesc12& View<TIface>::GetDesc12() noexcept
     {
         __if_exists(TDesc12::Buffer)
         {

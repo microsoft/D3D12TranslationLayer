@@ -371,7 +371,9 @@ inline void TRANSLATION_API ImmediateContext::DrawAuto()
 
     try
     {
+#ifdef USE_PIX
         PIXScopedEvent(GetGraphicsCommandList(), 0ull, L"DrawAuto");
+#endif
         EnsureDrawAutoResources(); // throw( _com_error )
 
         EnsureExecuteIndirectResources(); // throw( _com_error )
@@ -493,7 +495,9 @@ inline void ImmediateContext::InsertUAVBarriersIfNeeded(CViewBoundState<UAV, D3D
 //----------------------------------------------------------------------------------------------------------------------------------
 inline void ImmediateContext::PreDraw() noexcept(false)
 {
+#ifdef USE_PIX
     PIXScopedEvent(GetGraphicsCommandList(), 0ull, L"PreDraw");
+#endif
     PreRender(COMMAND_LIST_TYPE::GRAPHICS);
 
     if (m_bUseRingBufferDescriptorHeaps)
@@ -1081,7 +1085,9 @@ inline void TRANSLATION_API ImmediateContext::DispatchIndirect(Resource* pBuffer
 //----------------------------------------------------------------------------------------------------------------------------------
 inline void ImmediateContext::PreDispatch() noexcept(false)
 {
+#ifdef USE_PIX
     PIXScopedEvent(GetGraphicsCommandList(), 0ull, L"PreDispatch");
+#endif
     PreRender(COMMAND_LIST_TYPE::GRAPHICS);
 
     if (m_bUseRingBufferDescriptorHeaps)
@@ -1402,7 +1408,9 @@ inline void ImmediateContext::ResetCommandList(UINT commandListTypeMask) noexcep
 //----------------------------------------------------------------------------------------------------------------------------------
 inline HRESULT ImmediateContext::EnqueueSetEvent(UINT commandListTypeMask, HANDLE hEvent) noexcept
 {
+#ifdef USE_PIX
     PIXSetMarker(0ull, L"EnqueueSetEvent");
+#endif
     HRESULT hr = S_OK;
     ID3D12Fence *pFences[(UINT)COMMAND_LIST_TYPE::MAX_VALID] = {};
     UINT64 FenceValues[(UINT)COMMAND_LIST_TYPE::MAX_VALID] = {};

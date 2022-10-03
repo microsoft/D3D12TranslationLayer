@@ -933,7 +933,9 @@ D3D12_BOX ImmediateContext::GetBoxFromResource(Resource *pSrc, UINT SrcSubresour
 // * A copy to/from suballocated resources that are both from the same underlying heap
 void ImmediateContext::SameResourceCopy(Resource *pDst, UINT DstSubresource, Resource *pSrc, UINT SrcSubresource, UINT dstX, UINT dstY, UINT dstZ, const D3D12_BOX *pSrcBox)
 {
+#ifdef USE_PIX
     PIXScopedEvent(GetGraphicsCommandList(), 0ull, L"Same Resource Copy");
+#endif
     D3D12_BOX PatchedBox = {};
     if (!pSrcBox)
     {
@@ -1145,7 +1147,9 @@ void ImmediateContext::AddObjectToResidencySet(Resource *pResource, COMMAND_LIST
 //----------------------------------------------------------------------------------------------------------------------------------
 bool TRANSLATION_API ImmediateContext::Flush(UINT commandListTypeMask)
 {
+#ifdef USE_PIX
     PIXSetMarker(0ull, L"Flush");
+#endif
     bool bSubmitCommandList = false;
     m_ResourceStateManager.ApplyAllResourceTransitions();
 
@@ -1469,7 +1473,9 @@ template <typename T> T FloatTo(float x, T max = std::numeric_limits<T>::max())
 // clears fast.
 void TRANSLATION_API ImmediateContext::ClearResourceWithNoRenderTarget(Resource* pResource, CONST FLOAT color[4], UINT NumRects, const D3D12_RECT *pRects, UINT Subresource, UINT BaseSubresource, DXGI_FORMAT clearFormat)
 {
+#ifdef USE_PIX
     PIXScopedEvent(GetGraphicsCommandList(), 0ull, L"Clearing resource via copy");
+#endif
     assert(CD3D11FormatHelper::GetTypeLevel(clearFormat) == D3D11FTL_FULL_TYPE);
     auto& Footprint = pResource->GetSubresourcePlacement(Subresource).Footprint;
 
@@ -2168,7 +2174,9 @@ ID3D12PipelineState* ImmediateContext::PrepareGenerateMipsObjects(DXGI_FORMAT Fo
 //----------------------------------------------------------------------------------------------------------------------------------
 void TRANSLATION_API ImmediateContext::GenMips( SRV *pSRV, D3D12_FILTER_TYPE FilterType)
 {
+#ifdef USE_PIX
     PIXScopedEvent(GetGraphicsCommandList(), 0ull, L"GenerateMips");
+#endif
     PreRender(COMMAND_LIST_TYPE::GRAPHICS);
     auto pResource = pSRV->m_pResource;
     
@@ -2537,7 +2545,9 @@ void TRANSLATION_API ImmediateContext::ResourceCopy(Resource* pDst, Resource* pS
     assert(pSrc->NumSubresources() == pDst->NumSubresources());
     if (Resource::IsSameUnderlyingSubresource(pSrc, 0, pDst, 0))
     {
+#ifdef USE_PIX
         PIXScopedEvent(GetGraphicsCommandList(), 0ull, L"Whole-resource copy");
+#endif
         for (UINT Subresource = 0; Subresource < pSrc->NumSubresources(); ++Subresource)
         {
             SameResourceCopy(pDst, Subresource, pSrc, Subresource, 0, 0, 0, nullptr);
@@ -2570,7 +2580,9 @@ void TRANSLATION_API ImmediateContext::ResourceCopy(Resource* pDst, Resource* pS
         }
         else
         {
+#ifdef USE_PIX
             PIXScopedEvent(GetGraphicsCommandList(), 0ull, L"Whole-resource copy");
+#endif
             for (UINT Subresource = 0; Subresource < pSrc->NumSubresources(); ++Subresource)
             {
                 CopyAndConvertSubresourceRegion(pDst, Subresource, pSrc, Subresource, 0, 0, 0, nullptr);
@@ -2630,7 +2642,9 @@ void TRANSLATION_API ImmediateContext::SetResourceMinLOD(Resource* pResource, FL
 //----------------------------------------------------------------------------------------------------------------------------------
 void TRANSLATION_API ImmediateContext::CopyStructureCount(Resource* pDstResource, UINT DstAlignedByteOffset, UAV *pUAV)
 {
+#ifdef USE_PIX
     PIXScopedEvent(GetGraphicsCommandList(), 0ull, L"CopyStructureCount");
+#endif
     PreRender(COMMAND_LIST_TYPE::GRAPHICS);
 
     pUAV->UsedInCommandList(COMMAND_LIST_TYPE::GRAPHICS, GetCommandListID(COMMAND_LIST_TYPE::GRAPHICS));
@@ -2835,7 +2849,9 @@ inline void Swap10bitRBUpload(const BYTE* pSrcData, UINT SrcRowPitch, UINT SrcDe
 _Use_decl_annotations_
 void ImmediateContext::FinalizeUpdateSubresources(Resource* pDst, PreparedUpdateSubresourcesOperation const& PreparedStorage, D3D12_PLACED_SUBRESOURCE_FOOTPRINT const* LocalPlacementDescs)
 {
+#ifdef USE_PIX
     PIXScopedEvent(GetGraphicsCommandList(), 0ull, L"UpdateSubresource on GPU timeline");
+#endif
     bool bUseLocalPlacement = LocalPlacementDescs != nullptr;
 
     const UINT8 PlaneCount = (pDst->SubresourceMultiplier() * pDst->AppDesc()->NonOpaquePlaneCount());
@@ -2920,7 +2936,9 @@ ImmediateContext::CPrepareUpdateSubresourcesHelper::CPrepareUpdateSubresourcesHe
     , Subresources(Subresources)
     , bDstBoxPresent(pDstBox != nullptr)
 {
+#ifdef USE_PIX
     PIXScopedEvent(0ull, L"UpdateSubresource on CPU timeline");
+#endif
 #if DBG
     AssertPreconditions(pSrcData, pClearPattern);
 #endif
@@ -3814,7 +3832,9 @@ void TRANSLATION_API ImmediateContext::CopyTiles(Resource* pResource, _In_ const
 //----------------------------------------------------------------------------------------------------------------------------------
 void TRANSLATION_API ImmediateContext::UpdateTiles(Resource* pResource, _In_ const D3D12_TILED_RESOURCE_COORDINATE* pCoord, _In_ const D3D12_TILE_REGION_SIZE* pRegion, const _In_ VOID* pData, UINT Flags)
 {
+#ifdef USE_PIX
     PIXScopedEvent(GetGraphicsCommandList(), 0ull, L"UpdateTiles");
+#endif
     PreRender(COMMAND_LIST_TYPE::GRAPHICS);
     
     pResource->UsedInCommandList(COMMAND_LIST_TYPE::GRAPHICS, GetCommandListID(COMMAND_LIST_TYPE::GRAPHICS));
@@ -4226,7 +4246,9 @@ void TRANSLATION_API ImmediateContext::Rename(Resource* pResource, Resource* pRe
 //----------------------------------------------------------------------------------------------------------------------------------
 void TRANSLATION_API ImmediateContext::RenameViaCopy(Resource* pResource, Resource* pRenameResource, UINT DirtyPlaneMask)
 {
+#ifdef USE_PIX
     PIXSetMarker(GetGraphicsCommandList(), 0ull, L"Rename resource via copy");
+#endif
     unique_comptr<Resource> renameResource(pRenameResource);
 
     assert(pResource->AppDesc()->MipLevels() == 1 && pResource->AppDesc()->ArraySize() == 1);
@@ -4271,8 +4293,9 @@ void TRANSLATION_API ImmediateContext::DeleteRenameCookie(Resource* pRenameResou
 //----------------------------------------------------------------------------------------------------------------------------------
 bool TRANSLATION_API ImmediateContext::MapDiscardBuffer(Resource* pResource, UINT Subresource, MAP_TYPE MapType, bool DoNotWait, _In_opt_ const D3D12_BOX *pReadWriteRange, MappedSubresource* pMap )
 {
+#ifdef USE_PIX
     PIXSetMarker(0ull, L"Map(DISCARD) buffer");
-
+#endif
     assert(pResource->NumSubresources() == 1 && pResource->GetEffectiveUsage() == RESOURCE_USAGE_DYNAMIC);
     assert(pResource->UnderlyingResourceIsSuballocated());
 
@@ -4310,7 +4333,9 @@ bool TRANSLATION_API ImmediateContext::MapDiscardBuffer(Resource* pResource, UIN
 //----------------------------------------------------------------------------------------------------------------------------------
 bool TRANSLATION_API ImmediateContext::MapDynamicTexture(Resource* pResource, UINT Subresource, MAP_TYPE MapType, bool DoNotWait, _In_opt_ const D3D12_BOX *pReadWriteRange, MappedSubresource* pMap )
 {
+#ifdef USE_PIX
     PIXScopedEvent(GetGraphicsCommandList(), 0ull, L"Map of non-mappable resource");
+#endif
     assert(pResource->GetEffectiveUsage() == RESOURCE_USAGE_DYNAMIC);
     assert(MapType != MAP_TYPE_WRITE_NOOVERWRITE);
 
@@ -5008,7 +5033,9 @@ void TRANSLATION_API ImmediateContext::UnmapUnderlyingStaging(Resource* pResourc
 //----------------------------------------------------------------------------------------------------------------------------------
 void TRANSLATION_API ImmediateContext::UnmapDynamicTexture(Resource* pResource, UINT Subresource, _In_opt_ const D3D12_BOX *pReadWriteRange, bool bUploadMappedContents)
 {
+#ifdef USE_PIX
     PIXScopedEvent(GetGraphicsCommandList(), 0ull, L"Unmap non-mappable resource");
+#endif
     UINT MipIndex, PlaneIndex, ArrayIndex;
     pResource->DecomposeSubresource(Subresource, MipIndex, ArrayIndex, PlaneIndex);
 
@@ -5182,7 +5209,9 @@ void TRANSLATION_API ImmediateContext::SetHardwareProtectionState(BOOL)
 //----------------------------------------------------------------------------------------------------------------------------------
 void TRANSLATION_API ImmediateContext::RotateResourceIdentities(Resource* const* ppResources, UINT Resources)
 {
+#ifdef USE_PIX
     PIXSetMarker(0ull, L"Swap resource identities");
+#endif
     Resource* pLastResource = ppResources[0];
     for (UINT i = 1; i <= Resources; ++i)
     {
@@ -5531,19 +5560,25 @@ void ImmediateContext::ClearState()
 //----------------------------------------------------------------------------------------------------------------------------------
 void TRANSLATION_API ImmediateContext::SetMarker(const wchar_t* name)
 {
+#ifdef USE_PIX
     PIXSetMarker(GetGraphicsCommandList(), 0, L"D3D11 Marker: %s", name);
+#endif
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
 void TRANSLATION_API ImmediateContext::BeginEvent(const wchar_t* name)
 {
+#ifdef USE_PIX
     PIXBeginEvent(GetGraphicsCommandList(), 0, L"D3D11 Event: %s", name);
+#endif
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
 void TRANSLATION_API ImmediateContext::EndEvent()
 {
+#ifdef USE_PIX
     PIXEndEvent(GetGraphicsCommandList());
+#endif
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
