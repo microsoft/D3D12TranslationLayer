@@ -5557,7 +5557,7 @@ void ImmediateContext::ClearState()
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-void TRANSLATION_API ImmediateContext::SetMarker(const wchar_t* name)
+void TRANSLATION_API ImmediateContext::SetMarker([[maybe_unused]] const wchar_t* name)
 {
 #ifdef USE_PIX
     PIXSetMarker(GetGraphicsCommandList(), 0, L"D3D11 Marker: %s", name);
@@ -5565,7 +5565,7 @@ void TRANSLATION_API ImmediateContext::SetMarker(const wchar_t* name)
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
-void TRANSLATION_API ImmediateContext::BeginEvent(const wchar_t* name)
+void TRANSLATION_API ImmediateContext::BeginEvent([[maybe_unused]] const wchar_t* name)
 {
 #ifdef USE_PIX
     PIXBeginEvent(GetGraphicsCommandList(), 0, L"D3D11 Event: %s", name);
