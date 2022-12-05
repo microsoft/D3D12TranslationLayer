@@ -26,7 +26,7 @@ namespace D3D12TranslationLayer
         , m_bNeedSubmitFence(false)
         , m_pCommandList(nullptr)
         , m_pCommandAllocator(nullptr)
-        , m_AllocatorPool(false /*bLock*/, cMaxInFlightDepth[(size_t)type]/* max allocators in use until wait/block for completion*/)
+        , m_AllocatorPool(false /*bLock*/, GetMaxInFlightDepth(type))
         , m_hWaitEvent(CreateEvent(nullptr, FALSE, FALSE, nullptr)) // throw( _com_error )
         , m_MaxAllocatedUploadHeapSpacePerCommandList(cMaxAllocatedUploadHeapSpacePerCommandList)
     {

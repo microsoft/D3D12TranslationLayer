@@ -131,11 +131,15 @@ namespace D3D12TranslationLayer
         UINT64 m_commandListID = 1;
 
         // Number of maximum in-flight command lists at a given time
-        static constexpr UINT cMaxInFlightDepth[(size_t) COMMAND_LIST_TYPE::MAX_VALID] =
+        static constexpr UINT GetMaxInFlightDepth(COMMAND_LIST_TYPE type)
         {
-            CBoundedFencePool< unique_comptr<ID3D12CommandAllocator> >::cDefaultMaxInFlightDepth, // GRAPHICS
-            16, // VIDEO_DECODE
-            CBoundedFencePool< unique_comptr<ID3D12CommandAllocator> >::cDefaultMaxInFlightDepth // VIDEO_PROCESS
+            switch (type)
+            {
+                case COMMAND_LIST_TYPE::VIDEO_DECODE:
+                    return 16;
+                default:
+                    return 1024;
+            }
         };
 
         void SubmitFence() noexcept;

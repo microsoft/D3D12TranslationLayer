@@ -84,7 +84,7 @@ public:
         }
     }
 
-    CBoundedFencePool(bool bLock = false, UINT MaxInFlightDepth = cDefaultMaxInFlightDepth) noexcept
+    CBoundedFencePool(bool bLock = false, UINT MaxInFlightDepth = UINT_MAX) noexcept
         : m_pLock(bLock ? new std::mutex : nullptr),
         m_MaxInFlightDepth(MaxInFlightDepth)
     {
@@ -102,8 +102,6 @@ public:
         m_MaxInFlightDepth = other.m_MaxInFlightDepth;
         return *this;
     }
-
-    static constexpr UINT cDefaultMaxInFlightDepth = 1024;
 
 protected:
     typedef std::pair<UINT64, TResourceType> TPoolEntry;
