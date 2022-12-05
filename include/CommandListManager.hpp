@@ -122,13 +122,21 @@ namespace D3D12TranslationLayer
         DWORD                                               m_MaxAllocatedUploadHeapSpacePerCommandList;
 
         // Command allocator pools
-        CFencePool< unique_comptr<ID3D12CommandAllocator> > m_AllocatorPool;
+        CBoundedFencePool< unique_comptr<ID3D12CommandAllocator> > m_AllocatorPool;
 
         // Some notes on threading related to this command list ID / fence value.
         // The fence value is and should only ever be written by the immediate context thread.
         // The immediate context thread may read the fence value through GetCommandListID().
         // Other threads may read this value, but should only do so via CommandListIDInterlockedRead().
         UINT64 m_commandListID = 1;
+
+        // Number of maximum in-flight command lists at a given time
+        static constexpr UINT cMaxInFlightDepth[(size_t) COMMAND_LIST_TYPE::MAX_VALID] =
+        {
+            CBoundedFencePool< unique_comptr<ID3D12CommandAllocator> >::cDefaultMaxInFlightDepth, // GRAPHICS
+            16, // VIDEO_DECODE
+            CBoundedFencePool< unique_comptr<ID3D12CommandAllocator> >::cDefaultMaxInFlightDepth // VIDEO_PROCESS
+        };
 
         void SubmitFence() noexcept;
         void CloseCommandList(ID3D12CommandList *pCommandList);

@@ -26,7 +26,7 @@ namespace D3D12TranslationLayer
         , m_bNeedSubmitFence(false)
         , m_pCommandList(nullptr)
         , m_pCommandAllocator(nullptr)
-        , m_AllocatorPool(false /*bLock*/)
+        , m_AllocatorPool(false /*bLock*/, cMaxInFlightDepth[(size_t)type]/* max allocators in use until wait/block for completion*/)
         , m_hWaitEvent(CreateEvent(nullptr, FALSE, FALSE, nullptr)) // throw( _com_error )
         , m_MaxAllocatedUploadHeapSpacePerCommandList(cMaxAllocatedUploadHeapSpacePerCommandList)
     {
@@ -149,10 +149,16 @@ namespace D3D12TranslationLayer
             return std::move(spAllocator);
         };
 
+        auto pfnWaitForFence = [&](UINT64 fenceVal) -> bool // noexcept(false)
+        {
+            return WaitForFenceValue(fenceVal);
+        };
+
         UINT64 CurrentFence = m_Fence.GetCompletedValue();
 
         m_pCommandAllocator = m_AllocatorPool.RetrieveFromPool(
             CurrentFence,
+            pfnWaitForFence,
             pfnCreateNew,
             m_pParent->m_pDevice12.get(),
             GetD3D12CommandListType(m_type)
