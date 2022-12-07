@@ -379,7 +379,6 @@ namespace D3D12TranslationLayer
         if (m_Identity 
             && !m_Identity->m_bSharedResource
             && m_Identity->m_bOwnsUnderlyingResource
-            && m_pParent->IsResidencyManagementEnabled()
             && m_Identity->GetOwnedResource() != nullptr)
         {
             auto &residencyManager = m_pParent->GetResidencyManager();
@@ -519,7 +518,7 @@ namespace D3D12TranslationLayer
                 m_creationArgs.m_bManageResidency = false;
             }
 
-            if (bCompatibilityCreateRequired || !m_creationArgs.m_bManageResidency || !m_pParent->IsResidencyManagementEnabled())
+            if (bCompatibilityCreateRequired || !m_creationArgs.m_bManageResidency)
             {
                 HeapDesc.Flags &= ~D3D12_HEAP_FLAG_CREATE_NOT_RESIDENT;
             }
@@ -616,10 +615,7 @@ namespace D3D12TranslationLayer
     void Resource::UsedInCommandList(COMMAND_LIST_TYPE commandListType, UINT64 id)
     {
         assert(commandListType != COMMAND_LIST_TYPE::UNKNOWN);
-        if (m_pParent->IsResidencyManagementEnabled())
-        {
-            m_pParent->AddObjectToResidencySet(this, commandListType);
-        }
+        m_pParent->AddObjectToResidencySet(this, commandListType);
         if (m_Identity && m_Identity->HasRestrictedOutstandingResources())
         {
             OutstandingResourceUse resourceUse(commandListType, id);

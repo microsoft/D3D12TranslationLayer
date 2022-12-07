@@ -114,6 +114,11 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
     memset(m_aViewports, 0, sizeof(m_aViewports));
 
     HRESULT hr = S_OK;
+    if (!m_CreationArgs.UseResidencyManagement)
+    {
+        // Residency management is no longer optional
+        ThrowFailure(E_INVALIDARG);
+    }
 
     if (m_CreationArgs.RenamingIsMultithreaded)
     {
@@ -164,11 +169,8 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
     // Guesstimating that we'll generally have 2 command lists per frame (one that doesn't touch the back buffer
     // and one that does)
     const UINT maxFlushLatency = maxFrameLatency * 2;
-        
-    if (IsResidencyManagementEnabled())
-    {
-        m_residencyManagerWrapper.Initialize(pDevice, nodeIndex, m_pDXCoreAdapter.get(), m_pDXGIAdapter.get(), maxFlushLatency);
-    }
+
+    m_residencyManagerWrapper.Initialize(pDevice, nodeIndex, m_pDXCoreAdapter.get(), m_pDXGIAdapter.get(), maxFlushLatency);
 
     m_UAVDeclScratch.reserve(D3D11_1_UAV_SLOT_COUNT); // throw( bad_alloc )
     m_vUAVBarriers.reserve(D3D11_1_UAV_SLOT_COUNT); // throw( bad_alloc )

@@ -1534,15 +1534,7 @@ public: // variables
 
     TranslationLayerCallbacks const& GetUpperlayerCallbacks() { return m_callbacks; }
 
-    // TODO: 8462570 Residency management is left as something that can be toggled, this leads to 
-    // a lot of undesirable branching. Leaving this as a toggle to help investigate perf overhead 
-    // of residency management once 9on12/11on12 are better tuned, but we should consider stripping
-    // this at some point
-    bool IsResidencyManagementEnabled() { return m_CreationArgs.UseResidencyManagement; }
-    D3DX12Residency::ResidencyManager &GetResidencyManager() {
-        assert(IsResidencyManagementEnabled());
-        return m_residencyManagerWrapper.m_residencyManager;
-    }
+    D3DX12Residency::ResidencyManager &GetResidencyManager() { return m_residencyManagerWrapper.m_residencyManager; }
     ResourceStateManager& GetResourceStateManager() { return m_ResourceStateManager; }
 
     MaxFrameLatencyHelper m_MaxFrameLatencyHelper;
