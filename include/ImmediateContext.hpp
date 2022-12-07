@@ -1556,7 +1556,7 @@ private: // variables
     unique_comptr<Resource> m_pStagingBuffer;
 
 private: // Dynamic/staging resource pools
-    const UINT64 m_BufferPoolTrimThreshold = 5;
+    const UINT64 m_BufferPoolTrimThreshold = 100;
     TDynamicBufferPool m_UploadBufferPool;
     TDynamicBufferPool m_ReadbackBufferPool;
     TDynamicBufferPool m_DecoderBufferPool;
