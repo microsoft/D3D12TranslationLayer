@@ -779,13 +779,13 @@ struct ResourceInfo
 class ResidencyManagerWrapper
 {
 public:
-    D3DX12Residency::ResidencyManager m_residencyManager;
-    ResidencyManagerWrapper() : m_bIsInitialized(false) {}
+    ResidencyManager m_residencyManager;
+    ResidencyManagerWrapper(ImmediateContext& ImmCtx) : m_residencyManager(ImmCtx), m_bIsInitialized(false) {}
     ~ResidencyManagerWrapper() { if (m_bIsInitialized) m_residencyManager.Destroy(); }
 
-    void Initialize(ID3D12Device* ParentDevice, UINT DeviceNodeIndex, IDXCoreAdapter* ParentAdapterDXCore, IDXGIAdapter3* ParentAdapterDXGI, UINT32 MaxLatency)
+    void Initialize(UINT DeviceNodeIndex, IDXCoreAdapter* ParentAdapterDXCore, IDXGIAdapter3* ParentAdapterDXGI)
     {
-        m_residencyManager.Initialize(ParentDevice, DeviceNodeIndex, ParentAdapterDXCore, ParentAdapterDXGI, MaxLatency);
+        m_residencyManager.Initialize(DeviceNodeIndex, ParentAdapterDXCore, ParentAdapterDXGI);
         m_bIsInitialized = true;
     }
 
@@ -1534,7 +1534,7 @@ public: // variables
 
     TranslationLayerCallbacks const& GetUpperlayerCallbacks() { return m_callbacks; }
 
-    D3DX12Residency::ResidencyManager &GetResidencyManager() { return m_residencyManagerWrapper.m_residencyManager; }
+    ResidencyManager &GetResidencyManager() { return m_residencyManagerWrapper.m_residencyManager; }
     ResourceStateManager& GetResourceStateManager() { return m_ResourceStateManager; }
 
     MaxFrameLatencyHelper m_MaxFrameLatencyHelper;

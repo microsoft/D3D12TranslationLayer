@@ -31,7 +31,7 @@ namespace D3D12TranslationLayer
             m_bNeedSubmitFence = true;
             m_pResidencySet->Close();
             m_pParent->GetResidencyManager().SubmitCommandQueueCommand(
-                m_pCommandQueue.get(), std::forward<TFunc>(func), m_pResidencySet.get());
+                m_pCommandQueue.get(), (UINT)m_type, m_pResidencySet.get(), std::forward<TFunc>(func));
             ResetResidencySet();
         }
 
@@ -92,7 +92,7 @@ namespace D3D12TranslationLayer
 #if TRANSLATION_LAYER_DBG
         Fence                                               m_StallFence{m_pParent, FENCE_FLAG_NONE, 0};
 #endif
-        std::unique_ptr<D3DX12Residency::ResidencySet>      m_pResidencySet;
+        std::unique_ptr<ResidencySet>      m_pResidencySet;
         UINT                                                m_NumFlushesWithNoReadback = 0;
         UINT                                                m_NumCommands = 0;
         UINT                                                m_NumDraws = 0;

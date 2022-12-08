@@ -17,6 +17,7 @@ set(SRC
 	MaxFrameLatencyHelper.cpp
 	PipelineState.cpp
 	Query.cpp
+	Residency.cpp
 	Resource.cpp
 	ResourceBinding.cpp
 	ResourceCache.cpp
@@ -46,7 +47,6 @@ set (INC
 	../include/CommandListManager.hpp
 	../include/D3D12TranslationLayerDependencyIncludes.h
 	../include/D3D12TranslationLayerIncludes.h
-	../include/d3dx12residency.h
 	../include/DeviceChild.hpp
 	../include/DXGIColorSpaceHelper.h
 	../include/Fence.hpp
@@ -57,6 +57,7 @@ set (INC
 	../include/PipelineState.hpp
 	../include/PrecompiledShaders.h
 	../include/Query.hpp
+	../include/Residency.h
 	../include/Resource.hpp
 	../include/ResourceBinding.hpp
 	../include/ResourceCache.hpp

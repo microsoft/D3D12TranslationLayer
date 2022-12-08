@@ -10,7 +10,6 @@
 
 //Library Headers
 #define TRANSLATION_API
-#include "D3Dx12Residency.h"
 #include "VideoViewHelper.hpp"
 #include "SubresourceHelpers.hpp"
 #include "Util.hpp"
@@ -33,6 +32,7 @@
 #include "SwapChainManager.hpp"
 #include "ResourceBinding.hpp"
 #include "Fence.hpp"
+#include "Residency.h"
 #include "ResourceState.hpp"
 #include "RootSignature.hpp"
 #include "Resource.hpp"

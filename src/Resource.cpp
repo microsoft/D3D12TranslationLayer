@@ -383,21 +383,11 @@ namespace D3D12TranslationLayer
         {
             auto &residencyManager = m_pParent->GetResidencyManager();
 
-            // If this resource has already been involved in GPU operations, make 
-            // sure to get pass along the fence value so that it doesn't get evicted 
-            // too early
-            UINT64 residencyManagerGPUSyncValue = 0;
-            if (m_LastUsedCommandListID[(UINT)COMMAND_LIST_TYPE::GRAPHICS] > 0)
-            {
-                // TODO: This should get the current sync point generation, not a per-queue fence value.
-                residencyManager.GetCurrentGPUSyncPoint(m_pParent->GetCommandQueue(COMMAND_LIST_TYPE::GRAPHICS), &residencyManagerGPUSyncValue);
-            }
-
-            m_Identity->m_pResidencyHandle = std::unique_ptr<ResidencyManagedObjectWrapper>(new ResidencyManagedObjectWrapper(m_pParent->GetResidencyManager()));
+            m_Identity->m_pResidencyHandle = std::unique_ptr<ResidencyManagedObjectWrapper>(new ResidencyManagedObjectWrapper(residencyManager));
             D3D12_RESOURCE_DESC resourceDesc12 = m_creationArgs.m_desc12;
             D3D12_RESOURCE_ALLOCATION_INFO allocInfo = m_pParent->m_pDevice12->GetResourceAllocationInfo(m_pParent->GetNodeMask(), 1, &resourceDesc12);
 
-            m_Identity->m_pResidencyHandle->Initialize(m_Identity->GetResource(), allocInfo.SizeInBytes, residencyManagerGPUSyncValue, bIsResident);
+            m_Identity->m_pResidencyHandle->Initialize(m_Identity->GetResource(), allocInfo.SizeInBytes, bIsResident);
         }
     }
 
@@ -602,9 +592,9 @@ namespace D3D12TranslationLayer
         }
     }
 
-    D3DX12Residency::ManagedObject *Resource::GetResidencyHandle()
+    ManagedObject *Resource::GetResidencyHandle()
     {
-        D3DX12Residency::ManagedObject *pObject = nullptr;
+        ManagedObject *pObject = nullptr;
         if (m_Identity && m_Identity->m_pResidencyHandle)
         {
             pObject = &m_Identity->m_pResidencyHandle->GetManagedObject();
