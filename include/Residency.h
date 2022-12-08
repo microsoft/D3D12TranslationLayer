@@ -182,8 +182,18 @@ namespace D3D12TranslationLayer
                 return hr;
             }
 
-            HRESULT GPUWait(ID3D12CommandQueue* pQueue)
+            HRESULT GPUWait(ID3D12CommandQueue* pQueue, UINT CommandListIndex)
             {
+                if (CommandListIndex < (UINT)COMMAND_LIST_TYPE::MAX_VALID)
+                {
+                    // Don't call Wait again if we've already inserted a wait on this queue
+                    assert(LastWaitedValues[CommandListIndex] <= FenceValue);
+                    if (LastWaitedValues[CommandListIndex] == FenceValue)
+                    {
+                        return S_OK;
+                    }
+                    LastWaitedValues[CommandListIndex] = FenceValue;
+                }
                 HRESULT hr = pQueue->Wait(pFence, FenceValue);
                 assert(SUCCEEDED(hr));
                 return hr;
@@ -196,6 +206,7 @@ namespace D3D12TranslationLayer
 
             CComPtr<ID3D12Fence> pFence;
             UINT64 FenceValue = 0;
+            UINT64 LastWaitedValues[(UINT)COMMAND_LIST_TYPE::MAX_VALID];
         };
 
         // A Least Recently Used Cache. Tracks all of the objects requested by the app so that objects
@@ -358,7 +369,7 @@ namespace D3D12TranslationLayer
             // doesn't execute until the async thread signals that the MakeResident call has returned.
             if (SUCCEEDED(hr))
             {
-                hr = AsyncThreadFence.GPUWait(Queue);
+                hr = AsyncThreadFence.GPUWait(Queue, CommandListIndex);
             }
             return hr;
         }
@@ -379,7 +390,7 @@ namespace D3D12TranslationLayer
 
         HRESULT ProcessPagingWork(UINT CommandListIndex, ResidencySet *pMasterSet);
 
-        void GetCurrentBudget(DXCoreAdapterMemoryBudget* InfoOut, DXCoreSegmentGroup Segment);
+        void GetCurrentBudget(UINT64 Timestamp, DXCoreAdapterMemoryBudget* InfoOut);
 
         void WaitForSyncPoint(UINT64 FenceValues[]);
 
@@ -426,5 +437,10 @@ namespace D3D12TranslationLayer
         // When the app is using more than this % of its budgeted local VidMem trimming will occur
         // (valid between 0.0 - 1.0)
         static constexpr float cTrimPercentageMemoryUsageThreshold = 0.7f;
+
+        DXCoreAdapterMemoryBudget CachedBudget;
+        static constexpr float cBudgetQueryPeriod = 1.0f;
+        UINT64 BudgetQueryPeriodTicks;
+        UINT64 LastBudgetTimestamp = 0;
     };
 };

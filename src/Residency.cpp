@@ -97,6 +97,7 @@ HRESULT ResidencyManager::Initialize(UINT DeviceNodeIndex, IDXCoreAdapter *Paren
     // Calculate how many QPC ticks are equivalent to the given time in seconds
     MinEvictionGracePeriodTicks = UINT64(Frequency.QuadPart * cMinEvictionGracePeriod);
     MaxEvictionGracePeriodTicks = UINT64(Frequency.QuadPart * cMaxEvictionGracePeriod);
+    BudgetQueryPeriodTicks = UINT64(Frequency.QuadPart * cBudgetQueryPeriod);
 
     HRESULT hr = S_OK;
     hr = AsyncThreadFence.Initialize(Device);
@@ -159,7 +160,7 @@ HRESULT ResidencyManager::ProcessPagingWork(UINT CommandListIndex, ResidencySet 
 
         DXCoreAdapterMemoryBudget LocalMemory;
         ZeroMemory(&LocalMemory, sizeof(LocalMemory));
-        GetCurrentBudget(&LocalMemory, DXCoreSegmentGroup::Local);
+        GetCurrentBudget(CurrentTime.QuadPart, &LocalMemory);
 
         UINT64 EvictionGracePeriod = GetCurrentEvictionGracePeriod(&LocalMemory);
         UINT64 LastSubmittedFenceValues[(UINT)COMMAND_LIST_TYPE::MAX_VALID];
@@ -184,15 +185,8 @@ HRESULT ResidencyManager::ProcessPagingWork(UINT CommandListIndex, ResidencySet 
             UINT32 MakeResidentIndex = 0;
             while (true)
             {
-                ZeroMemory(&LocalMemory, sizeof(LocalMemory));
-
-                GetCurrentBudget(&LocalMemory, DXCoreSegmentGroup::Local);
-                DXCoreAdapterMemoryBudget NonLocalMemory;
-                ZeroMemory(&NonLocalMemory, sizeof(NonLocalMemory));
-                GetCurrentBudget(&NonLocalMemory, DXCoreSegmentGroup::NonLocal);
-
-                INT64 TotalUsage = LocalMemory.currentUsage + NonLocalMemory.currentUsage;
-                INT64 TotalBudget = LocalMemory.budget + NonLocalMemory.budget;
+                INT64 TotalUsage = LocalMemory.currentUsage;
+                INT64 TotalBudget = LocalMemory.budget;
 
                 INT64 AvailableSpace = TotalBudget - TotalUsage;
 
@@ -281,7 +275,8 @@ HRESULT ResidencyManager::ProcessPagingWork(UINT CommandListIndex, ResidencySet 
 
                     [[maybe_unused]] HRESULT hrEvict = Device->Evict(NumObjectsToEvict, pEvictionList);
                     assert(SUCCEEDED(hrEvict));
-                } else
+                }
+                else
                 {
                     // We made everything resident, mission accomplished
                     break;
@@ -295,29 +290,44 @@ HRESULT ResidencyManager::ProcessPagingWork(UINT CommandListIndex, ResidencySet 
     }
 }
 
-void ResidencyManager::GetCurrentBudget(DXCoreAdapterMemoryBudget* InfoOut, DXCoreSegmentGroup Segment)
+static void GetDXCoreBudget(IDXCoreAdapter *AdapterDXCore, UINT NodeIndex, DXCoreAdapterMemoryBudget *InfoOut, DXCoreSegmentGroup Segment)
 {
-    if (AdapterDXCore)
-    {
-        DXCoreAdapterMemoryBudgetNodeSegmentGroup InputParams = {};
-        InputParams.nodeIndex = NodeIndex;
-        InputParams.segmentGroup = Segment;
+    DXCoreAdapterMemoryBudgetNodeSegmentGroup InputParams = {};
+    InputParams.nodeIndex = NodeIndex;
+    InputParams.segmentGroup = Segment;
 
-        [[maybe_unused]] HRESULT hr = AdapterDXCore->QueryState(DXCoreAdapterState::AdapterMemoryBudget, &InputParams, InfoOut);
-        assert(SUCCEEDED(hr));
-    }
-    else
-    {
-        DXGI_MEMORY_SEGMENT_GROUP SegmentDXGI = (DXGI_MEMORY_SEGMENT_GROUP)Segment;
-        DXGI_QUERY_VIDEO_MEMORY_INFO DXGIOut = {};
-        [[maybe_unused]] HRESULT hr = AdapterDXGI->QueryVideoMemoryInfo(NodeIndex, SegmentDXGI, &DXGIOut);
-        assert(SUCCEEDED(hr));
+    [[maybe_unused]] HRESULT hr = AdapterDXCore->QueryState(DXCoreAdapterState::AdapterMemoryBudget, &InputParams, InfoOut);
+    assert(SUCCEEDED(hr));
+}
+static void GetDXGIBudget(IDXGIAdapter3 *AdapterDXGI, UINT NodeIndex, DXGI_QUERY_VIDEO_MEMORY_INFO *InfoOut, DXGI_MEMORY_SEGMENT_GROUP Segment)
+{
+    [[maybe_unused]] HRESULT hr = AdapterDXGI->QueryVideoMemoryInfo(NodeIndex, Segment, InfoOut);
+    assert(SUCCEEDED(hr));
+}
 
-        InfoOut->availableForReservation = DXGIOut.AvailableForReservation;
-        InfoOut->budget = DXGIOut.Budget;
-        InfoOut->currentReservation = DXGIOut.CurrentReservation;
-        InfoOut->currentUsage = DXGIOut.CurrentUsage;
+void ResidencyManager::GetCurrentBudget(UINT64 Timestamp, DXCoreAdapterMemoryBudget* InfoOut)
+{
+    if (Timestamp - LastBudgetTimestamp >= BudgetQueryPeriodTicks)
+    {
+        LastBudgetTimestamp = Timestamp;
+        if (AdapterDXCore)
+        {
+            DXCoreAdapterMemoryBudget Local, Nonlocal;
+            GetDXCoreBudget(AdapterDXCore, NodeIndex, &Local, DXCoreSegmentGroup::Local);
+            GetDXCoreBudget(AdapterDXCore, NodeIndex, &Nonlocal, DXCoreSegmentGroup::NonLocal);
+            CachedBudget.currentUsage = Local.currentUsage + Nonlocal.currentUsage;
+            CachedBudget.budget = Local.budget + Nonlocal.budget;
+        }
+        else
+        {
+            DXGI_QUERY_VIDEO_MEMORY_INFO Local, Nonlocal;
+            GetDXGIBudget(AdapterDXGI, NodeIndex, &Local, DXGI_MEMORY_SEGMENT_GROUP_LOCAL);
+            GetDXGIBudget(AdapterDXGI, NodeIndex, &Nonlocal, DXGI_MEMORY_SEGMENT_GROUP_NON_LOCAL);
+            CachedBudget.currentUsage = Local.CurrentUsage + Nonlocal.CurrentUsage;
+            CachedBudget.budget = Local.Budget + Nonlocal.Budget;
+        }
     }
+    *InfoOut = CachedBudget;
 }
 
 void ResidencyManager::WaitForSyncPoint(UINT64 FenceValues[])
