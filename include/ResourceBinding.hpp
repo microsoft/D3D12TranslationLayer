@@ -44,12 +44,19 @@ namespace D3D12TranslationLayer
         }
 
     private:
-        UINT m_PSSRVBindRefs = 0;
-        UINT m_NonPSSRVBindRefs = 0;
-        UINT m_UAVBindRefs = 0;
-        UINT m_RTVBindRefs = 0;
-        bool m_bIsDepthOrStencilBoundForReadOnly = false;
-        bool m_bIsDepthOrStencilBoundForWrite = false;
+        union
+        {
+            UINT BindRefsUint = 0;
+            struct
+            {
+                UINT m_PSSRVBindRefs : 8;
+                UINT m_NonPSSRVBindRefs : 8;
+                UINT m_UAVBindRefs : 7;
+                UINT m_RTVBindRefs : 4;
+                UINT m_bIsDepthOrStencilBoundForReadOnly : 1;
+                UINT m_bIsDepthOrStencilBoundForWrite : 1;
+            };
+        };
     };
 
     //----------------------------------------------------------------------------------------------------------------------------------
