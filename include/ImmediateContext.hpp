@@ -776,23 +776,6 @@ struct ResourceInfo
     HANDLE m_GDIHandle;
 };
 
-class ResidencyManagerWrapper
-{
-public:
-    ResidencyManager m_residencyManager;
-    ResidencyManagerWrapper(ImmediateContext& ImmCtx) : m_residencyManager(ImmCtx), m_bIsInitialized(false) {}
-    ~ResidencyManagerWrapper() { if (m_bIsInitialized) m_residencyManager.Destroy(); }
-
-    void Initialize(UINT DeviceNodeIndex, IDXCoreAdapter* ParentAdapterDXCore, IDXGIAdapter3* ParentAdapterDXGI)
-    {
-        m_residencyManager.Initialize(DeviceNodeIndex, ParentAdapterDXCore, ParentAdapterDXGI);
-        m_bIsInitialized = true;
-    }
-
-private:
-    bool m_bIsInitialized;
-};
-
 using RenameResourceSet = std::deque<unique_comptr<Resource>>;
 
 struct PresentSurface
@@ -835,7 +818,7 @@ private:
 
     // Residency Manager needs to come after the deferred deletion queue so that defer deleted objects can
     // call EndTrackingObject on a valid residency manager
-    ResidencyManagerWrapper m_residencyManagerWrapper;
+    ResidencyManager m_residencyManager;
 
     // It is important that the deferred deletion queue manager gets destroyed last, place solely strict dependencies above.
     COptLockedContainer<DeferredDeletionQueueManager> m_DeferredDeletionQueueManager;
@@ -1534,7 +1517,7 @@ public: // variables
 
     TranslationLayerCallbacks const& GetUpperlayerCallbacks() { return m_callbacks; }
 
-    ResidencyManager &GetResidencyManager() { return m_residencyManagerWrapper.m_residencyManager; }
+    ResidencyManager &GetResidencyManager() { return m_residencyManager; }
     ResourceStateManager& GetResourceStateManager() { return m_ResourceStateManager; }
 
     MaxFrameLatencyHelper m_MaxFrameLatencyHelper;

@@ -5,6 +5,81 @@
 
 namespace D3D12TranslationLayer
 {
+
+void Internal::LRUCache::TrimToSyncPointInclusive(INT64 CurrentUsage, INT64 CurrentBudget, ID3D12Pageable** EvictionList, UINT32& NumObjectsToEvict, UINT64 FenceValues[])
+{
+    NumObjectsToEvict = 0;
+
+    LIST_ENTRY* pResourceEntry = ResidentObjectListHead.Flink;
+    while (pResourceEntry != &ResidentObjectListHead)
+    {
+        ManagedObject* pObject = CONTAINING_RECORD(pResourceEntry, ManagedObject, ListEntry);
+
+        if (CurrentUsage < CurrentBudget)
+        {
+            return;
+        }
+        for (UINT i = 0; i < (UINT)COMMAND_LIST_TYPE::MAX_VALID; ++i)
+        {
+            if (pObject->LastUsedFenceValues[i] > FenceValues[i])
+            {
+                return;
+            }
+        }
+
+        assert(pObject->ResidencyStatus == ManagedObject::RESIDENCY_STATUS::RESIDENT);
+
+        if (pObject->IsPinned())
+        {
+            pResourceEntry = pResourceEntry->Flink;
+        }
+        else
+        {
+            EvictionList[NumObjectsToEvict++] = pObject->pUnderlying;
+            Evict(pObject);
+
+            CurrentUsage -= pObject->Size;
+
+            pResourceEntry = ResidentObjectListHead.Flink;
+        }
+    }
+}
+
+void Internal::LRUCache::TrimAgedAllocations(UINT64 FenceValues[], ID3D12Pageable** EvictionList, UINT32& NumObjectsToEvict, UINT64 CurrentTimeStamp, UINT64 MinDelta)
+{
+    LIST_ENTRY* pResourceEntry = ResidentObjectListHead.Flink;
+    while (pResourceEntry != &ResidentObjectListHead)
+    {
+        ManagedObject* pObject = CONTAINING_RECORD(pResourceEntry, ManagedObject, ListEntry);
+
+        if (CurrentTimeStamp - pObject->LastUsedTimestamp <= MinDelta) // Don't evict things which have been used recently
+        {
+            return;
+        }
+        for (UINT i = 0; i < (UINT)COMMAND_LIST_TYPE::MAX_VALID; ++i)
+        {
+            if (pObject->LastUsedFenceValues[i] > FenceValues[i])
+            {
+                return;
+            }
+        }
+
+        assert(pObject->ResidencyStatus == ManagedObject::RESIDENCY_STATUS::RESIDENT);
+
+        if (pObject->IsPinned())
+        {
+            pResourceEntry = pResourceEntry->Flink;
+        }
+        else
+        {
+            EvictionList[NumObjectsToEvict++] = pObject->pUnderlying;
+            Evict(pObject);
+
+            pResourceEntry = ResidentObjectListHead.Flink;
+        }
+    }
+}
+
 HRESULT ResidencyManager::Initialize(UINT DeviceNodeIndex, IDXCoreAdapter *ParentAdapterDXCore, IDXGIAdapter3 *ParentAdapterDXGI)
 {
     NodeIndex = DeviceNodeIndex;
@@ -217,6 +292,31 @@ HRESULT ResidencyManager::ProcessPagingWork(UINT CommandListIndex, ResidencySet 
         delete[](pMakeResidentList);
         delete[](pEvictionList);
         return hr;
+    }
+}
+
+void ResidencyManager::GetCurrentBudget(DXCoreAdapterMemoryBudget* InfoOut, DXCoreSegmentGroup Segment)
+{
+    if (AdapterDXCore)
+    {
+        DXCoreAdapterMemoryBudgetNodeSegmentGroup InputParams = {};
+        InputParams.nodeIndex = NodeIndex;
+        InputParams.segmentGroup = Segment;
+
+        [[maybe_unused]] HRESULT hr = AdapterDXCore->QueryState(DXCoreAdapterState::AdapterMemoryBudget, &InputParams, InfoOut);
+        assert(SUCCEEDED(hr));
+    }
+    else
+    {
+        DXGI_MEMORY_SEGMENT_GROUP SegmentDXGI = (DXGI_MEMORY_SEGMENT_GROUP)Segment;
+        DXGI_QUERY_VIDEO_MEMORY_INFO DXGIOut = {};
+        [[maybe_unused]] HRESULT hr = AdapterDXGI->QueryVideoMemoryInfo(NodeIndex, SegmentDXGI, &DXGIOut);
+        assert(SUCCEEDED(hr));
+
+        InfoOut->availableForReservation = DXGIOut.AvailableForReservation;
+        InfoOut->budget = DXGIOut.Budget;
+        InfoOut->currentReservation = DXGIOut.CurrentReservation;
+        InfoOut->currentUsage = DXGIOut.CurrentUsage;
     }
 }
 

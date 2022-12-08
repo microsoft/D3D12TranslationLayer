@@ -147,66 +147,39 @@ namespace D3D12TranslationLayer
             }
         }
 
-        HRESULT Open(UINT commandListType)
+        void Open(UINT commandListType)
         {
-            // It's invalid to open a set that is already open
-            if (IsOpen)
-            {
-                return E_INVALIDARG;
-            }
-
             assert(CommandListIndex == InvalidIndex);
             CommandListIndex = commandListType;
 
             Set.clear();
-
-            IsOpen = true;
-            return S_OK;
         }
 
-        HRESULT Close()
+        void Close()
         {
-            if (IsOpen == false)
-            {
-                return E_INVALIDARG;
-            }
-
             for (auto pObject : Set)
             {
                 pObject->CommandListsUsedOn[CommandListIndex] = false;
             }
 
             CommandListIndex = InvalidIndex;
-            IsOpen = false;
-
-            return S_OK;
         }
 
     private:
         UINT32 CommandListIndex = InvalidIndex;
         std::vector<ManagedObject*> Set;
-        bool IsOpen = false;
     };
 
     namespace Internal
     {
         struct Fence
         {
-            Fence(UINT64 StartingValue = 0) : FenceValue(StartingValue)
-            {
-            }
-
             HRESULT Initialize(ID3D12Device* pDevice)
             {
                 HRESULT hr = pDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&pFence));
                 assert(SUCCEEDED(hr));
 
                 return hr;
-            }
-
-            void Destroy()
-            {
-                pFence.Release();
             }
 
             HRESULT GPUWait(ID3D12CommandQueue* pQueue)
@@ -222,7 +195,7 @@ namespace D3D12TranslationLayer
             }
 
             CComPtr<ID3D12Fence> pFence;
-            UINT64 FenceValue;
+            UINT64 FenceValue = 0;
         };
 
         // A Least Recently Used Cache. Tracks all of the objects requested by the app so that objects
@@ -236,7 +209,6 @@ namespace D3D12TranslationLayer
                 ResidentSize(0)
             {
                 InitializeListHead(&ResidentObjectListHead);
-                InitializeListHead(&EvictedObjectListHead);
             };
 
             void Insert(ManagedObject* pObject)
@@ -249,16 +221,15 @@ namespace D3D12TranslationLayer
                 }
                 else
                 {
-                    InsertHeadList(&EvictedObjectListHead, &pObject->ListEntry);
                     NumEvictedObjects++;
                 }
             }
 
             void Remove(ManagedObject* pObject)
             {
-                RemoveEntryList(&pObject->ListEntry);
                 if (pObject->ResidencyStatus == ManagedObject::RESIDENCY_STATUS::RESIDENT)
                 {
+                    RemoveEntryList(&pObject->ListEntry);
                     NumResidentObjects--;
                     ResidentSize -= pObject->Size;
                 }
@@ -284,7 +255,6 @@ namespace D3D12TranslationLayer
                 assert(pObject->ResidencyStatus == ManagedObject::RESIDENCY_STATUS::EVICTED);
 
                 pObject->ResidencyStatus = ManagedObject::RESIDENCY_STATUS::RESIDENT;
-                RemoveEntryList(&pObject->ListEntry);
                 InsertTailList(&ResidentObjectListHead, &pObject->ListEntry);
 
                 NumEvictedObjects--;
@@ -299,7 +269,6 @@ namespace D3D12TranslationLayer
 
                 pObject->ResidencyStatus = ManagedObject::RESIDENCY_STATUS::EVICTED;
                 RemoveEntryList(&pObject->ListEntry);
-                InsertTailList(&EvictedObjectListHead, &pObject->ListEntry);
 
                 NumResidentObjects--;
                 ResidentSize -= pObject->Size;
@@ -307,80 +276,10 @@ namespace D3D12TranslationLayer
             }
 
             // Evict all of the resident objects used in sync points up to the specficied one (inclusive)
-            void TrimToSyncPointInclusive(INT64 CurrentUsage, INT64 CurrentBudget, ID3D12Pageable** EvictionList, UINT32& NumObjectsToEvict, UINT64 FenceValues[])
-            {
-                NumObjectsToEvict = 0;
-
-                LIST_ENTRY* pResourceEntry = ResidentObjectListHead.Flink;
-                while (pResourceEntry != &ResidentObjectListHead)
-                {
-                    ManagedObject* pObject = CONTAINING_RECORD(pResourceEntry, ManagedObject, ListEntry);
-
-                    if (CurrentUsage < CurrentBudget)
-                    {
-                        return;
-                    }
-                    for (UINT i = 0; i < (UINT)COMMAND_LIST_TYPE::MAX_VALID; ++i)
-                    {
-                        if (pObject->LastUsedFenceValues[i] > FenceValues[i])
-                        {
-                            return;
-                        }
-                    }
-
-                    assert(pObject->ResidencyStatus == ManagedObject::RESIDENCY_STATUS::RESIDENT);
-
-                    if (pObject->IsPinned())
-                    {
-                        pResourceEntry = pResourceEntry->Flink;
-                    }
-                    else
-                    {
-                        EvictionList[NumObjectsToEvict++] = pObject->pUnderlying;
-                        Evict(pObject);
-
-                        CurrentUsage -= pObject->Size;
-
-                        pResourceEntry = ResidentObjectListHead.Flink;
-                    }
-                }
-            }
+            void TrimToSyncPointInclusive(INT64 CurrentUsage, INT64 CurrentBudget, ID3D12Pageable** EvictionList, UINT32& NumObjectsToEvict, UINT64 FenceValues[]);
 
             // Trim all objects which are older than the specified time
-            void TrimAgedAllocations(UINT64 FenceValues[], ID3D12Pageable** EvictionList, UINT32& NumObjectsToEvict, UINT64 CurrentTimeStamp, UINT64 MinDelta)
-            {
-                LIST_ENTRY* pResourceEntry = ResidentObjectListHead.Flink;
-                while (pResourceEntry != &ResidentObjectListHead)
-                {
-                    ManagedObject* pObject = CONTAINING_RECORD(pResourceEntry, ManagedObject, ListEntry);
-
-                    if (CurrentTimeStamp - pObject->LastUsedTimestamp <= MinDelta) // Don't evict things which have been used recently
-                    {
-                        return;
-                    }
-                    for (UINT i = 0; i < (UINT)COMMAND_LIST_TYPE::MAX_VALID; ++i)
-                    {
-                        if (pObject->LastUsedFenceValues[i] > FenceValues[i])
-                        {
-                            return;
-                        }
-                    }
-
-                    assert(pObject->ResidencyStatus == ManagedObject::RESIDENCY_STATUS::RESIDENT);
-
-                    if (pObject->IsPinned())
-                    {
-                        pResourceEntry = pResourceEntry->Flink;
-                    }
-                    else
-                    {
-                        EvictionList[NumObjectsToEvict++] = pObject->pUnderlying;
-                        Evict(pObject);
-
-                        pResourceEntry = ResidentObjectListHead.Flink;
-                    }
-                }
-            }
+            void TrimAgedAllocations(UINT64 FenceValues[], ID3D12Pageable** EvictionList, UINT32& NumObjectsToEvict, UINT64 CurrentTimeStamp, UINT64 MinDelta);
 
             ManagedObject* GetResidentListHead()
             {
@@ -392,7 +291,6 @@ namespace D3D12TranslationLayer
             }
 
             LIST_ENTRY ResidentObjectListHead;
-            LIST_ENTRY EvictedObjectListHead;
 
             UINT32 NumResidentObjects;
             UINT32 NumEvictedObjects;
@@ -411,11 +309,6 @@ namespace D3D12TranslationLayer
 
         // NOTE: DeviceNodeIndex is an index not a mask. The majority of D3D12 uses bit masks to identify a GPU node whereas DXGI uses 0 based indices.
         HRESULT Initialize(UINT DeviceNodeIndex, IDXCoreAdapter* ParentAdapterDXCore, IDXGIAdapter3* ParentAdapterDXGI);
-
-        void Destroy()
-        {
-            AsyncThreadFence.Destroy();
-        }
 
         void BeginTrackingObject(ManagedObject* pObject)
         {
@@ -459,9 +352,6 @@ namespace D3D12TranslationLayer
         HRESULT PrepareToExecuteMasterSet(ID3D12CommandQueue* Queue, UINT CommandListIndex, ResidencySet* pMasterSet)
         {
             // Evict or make resident all of the objects we identified above.
-            // This will run on an async thread, allowing the current to continue while still blocking the GPU if required
-            // If a native async MakeResident is supported, this will run on this thread - it will only block until work referencing
-            // resources which need to be evicted is completed, and does not need to wait for MakeResident to complete.
             HRESULT hr = ProcessPagingWork(CommandListIndex, pMasterSet);
 
             // If there are some things that need to be made resident we need to make sure that the GPU
@@ -489,30 +379,7 @@ namespace D3D12TranslationLayer
 
         HRESULT ProcessPagingWork(UINT CommandListIndex, ResidencySet *pMasterSet);
 
-        void GetCurrentBudget(DXCoreAdapterMemoryBudget* InfoOut, DXCoreSegmentGroup Segment)
-        {
-            if (AdapterDXCore)
-            {
-                DXCoreAdapterMemoryBudgetNodeSegmentGroup InputParams = {};
-                InputParams.nodeIndex = NodeIndex;
-                InputParams.segmentGroup = Segment;
-
-                [[maybe_unused]] HRESULT hr = AdapterDXCore->QueryState(DXCoreAdapterState::AdapterMemoryBudget, &InputParams, InfoOut);
-                assert(SUCCEEDED(hr));
-            }
-            else
-            {
-                DXGI_MEMORY_SEGMENT_GROUP SegmentDXGI = (DXGI_MEMORY_SEGMENT_GROUP)Segment;
-                DXGI_QUERY_VIDEO_MEMORY_INFO DXGIOut = {};
-                [[maybe_unused]] HRESULT hr = AdapterDXGI->QueryVideoMemoryInfo(NodeIndex, SegmentDXGI, &DXGIOut);
-                assert(SUCCEEDED(hr));
-
-                InfoOut->availableForReservation = DXGIOut.AvailableForReservation;
-                InfoOut->budget = DXGIOut.Budget;
-                InfoOut->currentReservation = DXGIOut.CurrentReservation;
-                InfoOut->currentUsage = DXGIOut.CurrentUsage;
-            }
-        }
+        void GetCurrentBudget(DXCoreAdapterMemoryBudget* InfoOut, DXCoreSegmentGroup Segment);
 
         void WaitForSyncPoint(UINT64 FenceValues[]);
 

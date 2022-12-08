@@ -105,7 +105,7 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
 #endif
     , m_bUseRingBufferDescriptorHeaps(args.IsXbox)
     , m_BltResolveManager(*this)
-    , m_residencyManagerWrapper(*this)
+    , m_residencyManager(*this)
 {
     UNREFERENCED_PARAMETER(debugFlags);
     memset(m_BlendFactor, 0, sizeof(m_BlendFactor));
@@ -171,7 +171,7 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
     // and one that does)
     const UINT maxFlushLatency = maxFrameLatency * 2;
 
-    m_residencyManagerWrapper.Initialize(nodeIndex, m_pDXCoreAdapter.get(), m_pDXGIAdapter.get());
+    m_residencyManager.Initialize(nodeIndex, m_pDXCoreAdapter.get(), m_pDXGIAdapter.get());
 
     m_UAVDeclScratch.reserve(D3D11_1_UAV_SLOT_COUNT); // throw( bad_alloc )
     m_vUAVBarriers.reserve(D3D11_1_UAV_SLOT_COUNT); // throw( bad_alloc )
