@@ -6,10 +6,9 @@
 namespace D3D12TranslationLayer
 {
 
-void Internal::LRUCache::TrimToSyncPointInclusive(INT64 CurrentUsage, INT64 CurrentBudget, ID3D12Pageable** EvictionList, UINT32& NumObjectsToEvict, UINT64 FenceValues[])
+void Internal::LRUCache::TrimToSyncPointInclusive(INT64 CurrentUsage, INT64 CurrentBudget, std::vector<ID3D12Pageable*> &EvictionList, UINT64 FenceValues[])
 {
-    NumObjectsToEvict = 0;
-
+    EvictionList.clear();
     LIST_ENTRY* pResourceEntry = ResidentObjectListHead.Flink;
     while (pResourceEntry != &ResidentObjectListHead)
     {
@@ -35,7 +34,7 @@ void Internal::LRUCache::TrimToSyncPointInclusive(INT64 CurrentUsage, INT64 Curr
         }
         else
         {
-            EvictionList[NumObjectsToEvict++] = pObject->pUnderlying;
+            EvictionList.push_back(pObject->pUnderlying);
             Evict(pObject);
 
             CurrentUsage -= pObject->Size;
@@ -45,7 +44,7 @@ void Internal::LRUCache::TrimToSyncPointInclusive(INT64 CurrentUsage, INT64 Curr
     }
 }
 
-void Internal::LRUCache::TrimAgedAllocations(UINT64 FenceValues[], ID3D12Pageable** EvictionList, UINT32& NumObjectsToEvict, UINT64 CurrentTimeStamp, UINT64 MinDelta)
+void Internal::LRUCache::TrimAgedAllocations(UINT64 FenceValues[], std::vector<ID3D12Pageable*> &EvictionList, UINT64 CurrentTimeStamp, UINT64 MinDelta)
 {
     LIST_ENTRY* pResourceEntry = ResidentObjectListHead.Flink;
     while (pResourceEntry != &ResidentObjectListHead)
@@ -72,7 +71,7 @@ void Internal::LRUCache::TrimAgedAllocations(UINT64 FenceValues[], ID3D12Pageabl
         }
         else
         {
-            EvictionList[NumObjectsToEvict++] = pObject->pUnderlying;
+            EvictionList.push_back(pObject->pUnderlying);
             Evict(pObject);
 
             pResourceEntry = ResidentObjectListHead.Flink;
@@ -107,19 +106,6 @@ HRESULT ResidencyManager::Initialize(UINT DeviceNodeIndex, IDXCoreAdapter *Paren
 
 HRESULT ResidencyManager::ProcessPagingWork(UINT CommandListIndex, ResidencySet *pMasterSet)
 {
-    // Use a union so that we only need 1 allocation
-    union ResidentScratchSpace
-    {
-        ManagedObject *pManagedObject;
-        ID3D12Pageable *pUnderlying;
-    };
-
-    ResidentScratchSpace *pMakeResidentList = nullptr;
-    UINT32 NumObjectsToMakeResident = 0;
-
-    ID3D12Pageable **pEvictionList = nullptr;
-    UINT32 NumObjectsToEvict = 0;
-
     // the size of all the objects which will need to be made resident in order to execute this set.
     UINT64 SizeToMakeResident = 0;
 
@@ -131,8 +117,8 @@ HRESULT ResidencyManager::ProcessPagingWork(UINT CommandListIndex, ResidencySet 
         // A lock must be taken here as the state of the objects will be altered
         std::lock_guard Lock(Mutex);
 
-        pMakeResidentList = new ResidentScratchSpace[pMasterSet->Set.size()];
-        pEvictionList = new ID3D12Pageable * [LRU.NumResidentObjects];
+        MakeResidentList.reserve(pMasterSet->Set.size());
+        EvictionList.reserve(LRU.NumResidentObjects);
 
         // Mark the objects used by this command list to be made resident
         for (auto pObject : pMasterSet->Set)
@@ -140,7 +126,7 @@ HRESULT ResidencyManager::ProcessPagingWork(UINT CommandListIndex, ResidencySet 
             // If it's evicted we need to make it resident again
             if (pObject->ResidencyStatus == ManagedObject::RESIDENCY_STATUS::EVICTED)
             {
-                pMakeResidentList[NumObjectsToMakeResident++].pManagedObject = pObject;
+                MakeResidentList.push_back({ pObject });
                 LRU.MakeResident(pObject);
 
                 SizeToMakeResident += pObject->Size;
@@ -170,16 +156,16 @@ HRESULT ResidencyManager::ProcessPagingWork(UINT CommandListIndex, ResidencySet 
             LastSubmittedFenceValues[i] = ImmCtx.GetCommandListID((COMMAND_LIST_TYPE)i) - 1;
             WaitedFenceValues[i] = ImmCtx.GetCompletedFenceValue((COMMAND_LIST_TYPE)i);
         }
-        LRU.TrimAgedAllocations(WaitedFenceValues, pEvictionList, NumObjectsToEvict, CurrentTime.QuadPart, EvictionGracePeriod);
+        LRU.TrimAgedAllocations(WaitedFenceValues, EvictionList, CurrentTime.QuadPart, EvictionGracePeriod);
 
-        if (NumObjectsToEvict)
+        if (!EvictionList.empty())
         {
-            [[maybe_unused]] HRESULT hrEvict = Device->Evict(NumObjectsToEvict, pEvictionList);
+            [[maybe_unused]] HRESULT hrEvict = Device->Evict((UINT)EvictionList.size(), EvictionList.data());
             assert(SUCCEEDED(hrEvict));
-            NumObjectsToEvict = 0;
+            EvictionList.clear();
         }
 
-        if (NumObjectsToMakeResident)
+        if (!MakeResidentList.empty())
         {
             UINT32 ObjectsMadeResident = 0;
             UINT32 MakeResidentIndex = 0;
@@ -196,10 +182,10 @@ HRESULT ResidencyManager::ProcessPagingWork(UINT CommandListIndex, ResidencySet 
 
                 if (AvailableSpace > 0)
                 {
-                    for (UINT32 i = MakeResidentIndex; i < NumObjectsToMakeResident; i++)
+                    for (UINT32 i = MakeResidentIndex; i < MakeResidentList.size(); i++)
                     {
                         // If we try to make this object resident, will we go over budget?
-                        if (BatchSize + pMakeResidentList[i].pManagedObject->Size > UINT64(AvailableSpace))
+                        if (BatchSize + MakeResidentList[i].pManagedObject->Size > UINT64(AvailableSpace))
                         {
                             // Next time we will start here
                             MakeResidentIndex = i;
@@ -207,17 +193,17 @@ HRESULT ResidencyManager::ProcessPagingWork(UINT CommandListIndex, ResidencySet 
                         }
                         else
                         {
-                            BatchSize += pMakeResidentList[i].pManagedObject->Size;
+                            BatchSize += MakeResidentList[i].pManagedObject->Size;
                             NumObjectsInBatch++;
                             ObjectsMadeResident++;
 
-                            pMakeResidentList[i].pUnderlying = pMakeResidentList[i].pManagedObject->pUnderlying;
+                            MakeResidentList[i].pUnderlying = MakeResidentList[i].pManagedObject->pUnderlying;
                         }
                     }
 
                     hr = Device->EnqueueMakeResident(D3D12_RESIDENCY_FLAG_NONE,
                                                      NumObjectsInBatch,
-                                                     &pMakeResidentList[BatchStart].pUnderlying,
+                                                     &MakeResidentList[BatchStart].pUnderlying,
                                                      AsyncThreadFence.pFence,
                                                      AsyncThreadFence.FenceValue + 1);
                     if (SUCCEEDED(hr))
@@ -227,7 +213,7 @@ HRESULT ResidencyManager::ProcessPagingWork(UINT CommandListIndex, ResidencySet 
                     }
                 }
 
-                if (FAILED(hr) || ObjectsMadeResident != NumObjectsToMakeResident)
+                if (FAILED(hr) || ObjectsMadeResident != MakeResidentList.size())
                 {
                     ManagedObject *pResidentHead = LRU.GetResidentListHead();
                     while (pResidentHead && pResidentHead->IsPinned())
@@ -240,17 +226,17 @@ HRESULT ResidencyManager::ProcessPagingWork(UINT CommandListIndex, ResidencySet 
                         std::equal(WaitedFenceValues, std::end(WaitedFenceValues), LastSubmittedFenceValues))
                     {
                         // Make resident the rest of the objects as there is nothing left to trim
-                        UINT32 NumObjects = NumObjectsToMakeResident - ObjectsMadeResident;
+                        UINT32 NumObjects = (UINT32)MakeResidentList.size() - ObjectsMadeResident;
 
                         // Gather up the remaining underlying objects
-                        for (UINT32 i = MakeResidentIndex; i < NumObjectsToMakeResident; i++)
+                        for (UINT32 i = MakeResidentIndex; i < MakeResidentList.size(); i++)
                         {
-                            pMakeResidentList[i].pUnderlying = pMakeResidentList[i].pManagedObject->pUnderlying;
+                            MakeResidentList[i].pUnderlying = MakeResidentList[i].pManagedObject->pUnderlying;
                         }
 
                         hr = Device->EnqueueMakeResident(D3D12_RESIDENCY_FLAG_NONE,
                                                          NumObjects,
-                                                         &pMakeResidentList[MakeResidentIndex].pUnderlying,
+                                                         &MakeResidentList[MakeResidentIndex].pUnderlying,
                                                          AsyncThreadFence.pFence,
                                                          AsyncThreadFence.FenceValue + 1);
                         if (SUCCEEDED(hr))
@@ -271,9 +257,9 @@ HRESULT ResidencyManager::ProcessPagingWork(UINT CommandListIndex, ResidencySet 
                     WaitForSyncPoint(FenceValuesToWaitFor);
                     std::copy(FenceValuesToWaitFor, FenceValuesToWaitFor + (UINT)COMMAND_LIST_TYPE::MAX_VALID, WaitedFenceValues);
 
-                    LRU.TrimToSyncPointInclusive(TotalUsage + INT64(SizeToMakeResident), TotalBudget, pEvictionList, NumObjectsToEvict, WaitedFenceValues);
+                    LRU.TrimToSyncPointInclusive(TotalUsage + INT64(SizeToMakeResident), TotalBudget, EvictionList, WaitedFenceValues);
 
-                    [[maybe_unused]] HRESULT hrEvict = Device->Evict(NumObjectsToEvict, pEvictionList);
+                    [[maybe_unused]] HRESULT hrEvict = Device->Evict((UINT)EvictionList.size(), EvictionList.data());
                     assert(SUCCEEDED(hrEvict));
                 }
                 else
@@ -284,8 +270,8 @@ HRESULT ResidencyManager::ProcessPagingWork(UINT CommandListIndex, ResidencySet 
             }
         }
 
-        delete[](pMakeResidentList);
-        delete[](pEvictionList);
+        MakeResidentList.clear();
+        EvictionList.clear();
         return hr;
     }
 }

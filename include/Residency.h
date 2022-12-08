@@ -287,10 +287,10 @@ namespace D3D12TranslationLayer
             }
 
             // Evict all of the resident objects used in sync points up to the specficied one (inclusive)
-            void TrimToSyncPointInclusive(INT64 CurrentUsage, INT64 CurrentBudget, ID3D12Pageable** EvictionList, UINT32& NumObjectsToEvict, UINT64 FenceValues[]);
+            void TrimToSyncPointInclusive(INT64 CurrentUsage, INT64 CurrentBudget, std::vector<ID3D12Pageable*> &EvictionList, UINT64 FenceValues[]);
 
             // Trim all objects which are older than the specified time
-            void TrimAgedAllocations(UINT64 FenceValues[], ID3D12Pageable** EvictionList, UINT32& NumObjectsToEvict, UINT64 CurrentTimeStamp, UINT64 MinDelta);
+            void TrimAgedAllocations(UINT64 FenceValues[], std::vector<ID3D12Pageable*> &EvictionList, UINT64 CurrentTimeStamp, UINT64 MinDelta);
 
             ManagedObject* GetResidentListHead()
             {
@@ -442,5 +442,14 @@ namespace D3D12TranslationLayer
         static constexpr float cBudgetQueryPeriod = 1.0f;
         UINT64 BudgetQueryPeriodTicks;
         UINT64 LastBudgetTimestamp = 0;
+
+        // Use a union so that we only need 1 allocation
+        union ResidentScratchSpace
+        {
+            ManagedObject *pManagedObject;
+            ID3D12Pageable *pUnderlying;
+        };
+        std::vector<ResidentScratchSpace> MakeResidentList;
+        std::vector<ID3D12Pageable *> EvictionList;
     };
 };
