@@ -4545,7 +4545,7 @@ bool TRANSLATION_API ImmediateContext::Map(Resource* pResource, UINT Subresource
         {
             case MAP_TYPE_READ:
             case MAP_TYPE_READWRITE:
-                if (pResource->AppDesc()->ResourceDimension() == D3D12_RESOURCE_DIMENSION_BUFFER && !pResource->IsLockableSharedBuffer())
+                if (pResource->m_creationArgs.m_heapDesc.Properties.CPUPageProperty != D3D12_CPU_PAGE_PROPERTY_NOT_AVAILABLE)
                 {
                     return MapUnderlyingSynchronize(pResource, Subresource, MapType, DoNotWait, pReadWriteRange, pMappedSubresource);
                 }
@@ -4554,7 +4554,7 @@ bool TRANSLATION_API ImmediateContext::Map(Resource* pResource, UINT Subresource
                     return MapDynamicTexture(pResource, Subresource, MapType, DoNotWait, pReadWriteRange, pMappedSubresource);
                 }
             case MAP_TYPE_WRITE_DISCARD:
-                if (pResource->AppDesc()->ResourceDimension() == D3D12_RESOURCE_DIMENSION_BUFFER && !pResource->IsLockableSharedBuffer())
+                if (pResource->m_creationArgs.m_heapDesc.Properties.CPUPageProperty != D3D12_CPU_PAGE_PROPERTY_NOT_AVAILABLE)
                 {
                     return MapDiscardBuffer(pResource, Subresource, MapType, DoNotWait, pReadWriteRange, pMappedSubresource);
                 }
@@ -4568,7 +4568,7 @@ bool TRANSLATION_API ImmediateContext::Map(Resource* pResource, UINT Subresource
                 return MapUnderlying(pResource, Subresource, MapType, pReadWriteRange, pMappedSubresource);
             case MAP_TYPE_WRITE:
                 assert(pResource->AppDesc()->ResourceDimension() == D3D12_RESOURCE_DIMENSION_BUFFER);
-                if (!pResource->IsLockableSharedBuffer())
+                if (pResource->m_creationArgs.m_heapDesc.Properties.CPUPageProperty != D3D12_CPU_PAGE_PROPERTY_NOT_AVAILABLE)
                 {
                     return MapUnderlyingSynchronize(pResource, Subresource, MapType, DoNotWait, pReadWriteRange, pMappedSubresource);
                 }
@@ -4595,7 +4595,7 @@ void TRANSLATION_API ImmediateContext::Unmap(Resource* pResource, UINT Subresour
         UnmapDefault(pResource, Subresource, pReadWriteRange);
         break;
     case RESOURCE_USAGE_DYNAMIC:
-        if (pResource->UnderlyingResourceIsSuballocated() || (pResource->AppDesc()->ResourceDimension() == D3D12_RESOURCE_DIMENSION_BUFFER && !pResource->IsLockableSharedBuffer()))
+        if (pResource->m_creationArgs.m_heapDesc.Properties.CPUPageProperty != D3D12_CPU_PAGE_PROPERTY_NOT_AVAILABLE)
         {
             UnmapUnderlyingSimple(pResource, Subresource, pReadWriteRange);
         }

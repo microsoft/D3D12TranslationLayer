@@ -604,7 +604,7 @@ namespace D3D12TranslationLayer
             else
             {
                 return AppDesc()->BindFlags() &  RESOURCE_BIND_DECODER ||
-                       IsLockableSharedBuffer() ||
+                       m_creationArgs.m_heapDesc.Properties.CPUPageProperty == D3D12_CPU_PAGE_PROPERTY_NOT_AVAILABLE ||
                        (AppDesc()->Usage() == RESOURCE_USAGE_DYNAMIC && Parent()->ResourceDimension12() == D3D12_RESOURCE_DIMENSION_BUFFER && (AppDesc()->CPUAccessFlags() & RESOURCE_CPU_ACCESS_READ) != 0);
             }
         }
