@@ -130,7 +130,6 @@ namespace D3D12TranslationLayer
         // Returns true if the object was inserted, false otherwise
         inline bool Insert(ManagedObject* pObject)
         {
-            assert(IsOpen);
             assert(CommandListIndex != InvalidIndex);
 
             // If we haven't seen this object on this command list mark it
@@ -206,7 +205,7 @@ namespace D3D12TranslationLayer
 
             CComPtr<ID3D12Fence> pFence;
             UINT64 FenceValue = 0;
-            UINT64 LastWaitedValues[(UINT)COMMAND_LIST_TYPE::MAX_VALID];
+            UINT64 LastWaitedValues[(UINT)COMMAND_LIST_TYPE::MAX_VALID] = {};
         };
 
         // A Least Recently Used Cache. Tracks all of the objects requested by the app so that objects
