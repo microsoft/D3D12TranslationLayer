@@ -1642,20 +1642,19 @@ DEFINE_ENUM_FLAG_OPERATORS(ImmediateContext::UpdateSubresourcesFlags);
 
 struct SafeRenameResourceCookie
 {
-    SafeRenameResourceCookie(ImmediateContext& immCtx, Resource* c = nullptr) : m_immCtx(immCtx), m_c(c) { }
+    SafeRenameResourceCookie(Resource* c = nullptr) : m_c(c) { }
     Resource* Detach() { auto c = m_c; m_c = nullptr; return c; }
     Resource* Get() { return m_c; }
     void Delete()
     {
         if (m_c)
         {
-            m_immCtx.DeleteRenameCookie(m_c);
+            m_c->m_pParent->DeleteRenameCookie(m_c);
             m_c = nullptr;
         }
     }
     void Reset(Resource* c) { Delete(); m_c = c; }
     ~SafeRenameResourceCookie() { Delete(); }
-    ImmediateContext& m_immCtx;
     Resource* m_c = nullptr;
 };
 

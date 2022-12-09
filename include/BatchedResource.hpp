@@ -12,7 +12,6 @@ public:
         : BatchedDeviceChild(Context)
         , m_spResource(ownsResource ? underlyingResource : nullptr, { Context })
         , m_pResource(underlyingResource)
-        , m_PendingRenameViaCopyCookie(Context.GetImmediateContextNoFlush())
         // Resources constructed without ownership don't support Map(NO_OVERWRITE) until they've been discarded once.
         , m_LastRenamedResource(ownsResource ? m_pResource->GetIdentity()->m_suballocation : decltype(m_LastRenamedResource){})
     {
