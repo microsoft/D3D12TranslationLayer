@@ -27,7 +27,8 @@ namespace D3D12TranslationLayer
     {
         if (m_bAllSubresourcesSame && m_spSubresourceInfo.size() > 1)
         {
-            std::fill(&m_spSubresourceInfo[1], m_spSubresourceInfo.end(), m_spSubresourceInfo[0]);
+            static_assert(std::extent_v<decltype(m_spSubresourceInfo.m_InlineArray)> == 1, "Otherwise this fill doesn't work");
+            std::fill(m_spSubresourceInfo.m_Extra.begin(), m_spSubresourceInfo.m_Extra.end(), m_spSubresourceInfo[0]);
             m_bAllSubresourcesSame = false;
         }
         if (m_spSubresourceInfo.size() == 1)
@@ -48,10 +49,12 @@ namespace D3D12TranslationLayer
     {
         if (m_bAllSubresourcesSame && m_spExclusiveState.size() > 1)
         {
-            std::fill(&m_spExclusiveState[1], m_spExclusiveState.end(), m_spExclusiveState[0]);
+            static_assert(std::extent_v<decltype(m_spExclusiveState.m_InlineArray)> == 1, "Otherwise this fill doesn't work");
+            std::fill(m_spExclusiveState.m_Extra.begin(), m_spExclusiveState.m_Extra.end(), m_spExclusiveState[0]);
             if (!m_pSharedState.empty())
             {
-                std::fill(&m_pSharedState[1], m_pSharedState.end(), m_pSharedState[0]);
+                static_assert(std::extent_v<decltype(m_pSharedState.m_InlineArray)> == 1, "Otherwise this fill doesn't work");
+                std::fill(m_pSharedState.m_Extra.begin(), m_pSharedState.m_Extra.end(), m_pSharedState[0]);
             }
             m_bAllSubresourcesSame = false;
         }

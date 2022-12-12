@@ -836,23 +836,6 @@ struct ResourceInfo
     HANDLE m_GDIHandle;
 };
 
-class ResidencyManagerWrapper
-{
-public:
-    D3DX12Residency::ResidencyManager m_residencyManager;
-    ResidencyManagerWrapper() : m_bIsInitialized(false) {}
-    ~ResidencyManagerWrapper() { if (m_bIsInitialized) m_residencyManager.Destroy(); }
-
-    void Initialize(ID3D12Device* ParentDevice, UINT DeviceNodeIndex, IDXCoreAdapter* ParentAdapterDXCore, IDXGIAdapter3* ParentAdapterDXGI, UINT32 MaxLatency)
-    {
-        m_residencyManager.Initialize(ParentDevice, DeviceNodeIndex, ParentAdapterDXCore, ParentAdapterDXGI, MaxLatency);
-        m_bIsInitialized = true;
-    }
-
-private:
-    bool m_bIsInitialized;
-};
-
 using RenameResourceSet = std::deque<unique_comptr<Resource>>;
 
 struct PresentSurface
@@ -895,7 +878,7 @@ private:
 
     // Residency Manager needs to come after the deferred deletion queue so that defer deleted objects can
     // call EndTrackingObject on a valid residency manager
-    ResidencyManagerWrapper m_residencyManagerWrapper;
+    ResidencyManager m_residencyManager;
 
     // It is important that the deferred deletion queue manager gets destroyed last, place solely strict dependencies above.
     COptLockedContainer<DeferredDeletionQueueManager> m_DeferredDeletionQueueManager;
@@ -1594,15 +1577,7 @@ public: // variables
 
     TranslationLayerCallbacks const& GetUpperlayerCallbacks() { return m_callbacks; }
 
-    // TODO: 8462570 Residency management is left as something that can be toggled, this leads to 
-    // a lot of undesirable branching. Leaving this as a toggle to help investigate perf overhead 
-    // of residency management once 9on12/11on12 are better tuned, but we should consider stripping
-    // this at some point
-    bool IsResidencyManagementEnabled() { return m_CreationArgs.UseResidencyManagement; }
-    D3DX12Residency::ResidencyManager &GetResidencyManager() {
-        assert(IsResidencyManagementEnabled());
-        return m_residencyManagerWrapper.m_residencyManager;
-    }
+    ResidencyManager &GetResidencyManager() { return m_residencyManager; }
     ResourceStateManager& GetResourceStateManager() { return m_ResourceStateManager; }
 
     MaxFrameLatencyHelper m_MaxFrameLatencyHelper;
@@ -1616,7 +1591,7 @@ private: // variables
     unique_comptr<Resource> m_pStagingBuffer;
 
 private: // Dynamic/staging resource pools
-    const UINT64 m_BufferPoolTrimThreshold = 5;
+    const UINT64 m_BufferPoolTrimThreshold = 100;
     TDynamicBufferPool m_UploadBufferPool;
     TDynamicBufferPool m_ReadbackBufferPool;
     TDynamicBufferPool m_DecoderBufferPool;
@@ -1727,20 +1702,19 @@ DEFINE_ENUM_FLAG_OPERATORS(ImmediateContext::UpdateSubresourcesFlags);
 
 struct SafeRenameResourceCookie
 {
-    SafeRenameResourceCookie(ImmediateContext& immCtx, Resource* c = nullptr) : m_immCtx(immCtx), m_c(c) { }
+    SafeRenameResourceCookie(Resource* c = nullptr) : m_c(c) { }
     Resource* Detach() { auto c = m_c; m_c = nullptr; return c; }
     Resource* Get() { return m_c; }
     void Delete()
     {
         if (m_c)
         {
-            m_immCtx.DeleteRenameCookie(m_c);
+            m_c->m_pParent->DeleteRenameCookie(m_c);
             m_c = nullptr;
         }
     }
     void Reset(Resource* c) { Delete(); m_c = c; }
     ~SafeRenameResourceCookie() { Delete(); }
-    ImmediateContext& m_immCtx;
     Resource* m_c = nullptr;
 };
 

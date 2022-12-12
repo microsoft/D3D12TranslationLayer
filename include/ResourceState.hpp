@@ -54,10 +54,10 @@ constexpr D3D12_RESOURCE_STATES RESOURCE_STATE_ALL_WRITE_BITS =
     private:
         bool m_bAllSubresourcesSame = true;
 
-        PreallocatedArray<SubresourceInfo> m_spSubresourceInfo;
+        PreallocatedInlineArray<SubresourceInfo, 1> m_spSubresourceInfo;
 
     public:
-        static size_t CalcPreallocationSize(UINT SubresourceCount) { return sizeof(SubresourceInfo) * SubresourceCount; }
+        static size_t CalcPreallocationSize(UINT SubresourceCount) { return sizeof(SubresourceInfo) * (SubresourceCount - 1); }
         CDesiredResourceState(UINT SubresourceCount, void*& pPreallocatedMemory) noexcept
             : m_spSubresourceInfo(SubresourceCount, pPreallocatedMemory) // throw( bad_alloc )
         {
@@ -107,15 +107,15 @@ constexpr D3D12_RESOURCE_STATES RESOURCE_STATE_ALL_WRITE_BITS =
 
         // Note: As a (minor) memory optimization, using a contiguous block of memory for exclusive + shared state.
         // The memory is owned by the exclusive state pointer. The shared state pointer is non-owning and possibly null.
-        PreallocatedArray<ExclusiveState> m_spExclusiveState;
-        PreallocatedArray<SharedState> m_pSharedState;
+        PreallocatedInlineArray<ExclusiveState, 1> m_spExclusiveState;
+        PreallocatedInlineArray<SharedState, 1> m_pSharedState;
 
         void ConvertToSubresourceTracking() noexcept;
 
     public:
         static size_t CalcPreallocationSize(UINT SubresourceCount, bool bSimultaneousAccess)
         {
-            return (sizeof(ExclusiveState) + (bSimultaneousAccess ? sizeof(SharedState) : 0u)) * SubresourceCount;
+            return (sizeof(ExclusiveState) + (bSimultaneousAccess ? sizeof(SharedState) : 0u)) * (SubresourceCount - 1);
         }
         CCurrentResourceState(UINT SubresourceCount, bool bSimultaneousAccess, void*& pPreallocatedMemory) noexcept;
 

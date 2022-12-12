@@ -1148,7 +1148,7 @@ bool TRANSLATION_API BatchedContext::RenameAndMapBuffer(BatchedResource* pResour
     try
     {
         auto& ImmCtx = GetImmediateContextNoFlush();
-        SafeRenameResourceCookie cookie(ImmCtx, ImmCtx.CreateRenameCookie(pResource->m_pResource, ResourceAllocationContext::FreeThread));
+        SafeRenameResourceCookie cookie(ImmCtx.CreateRenameCookie(pResource->m_pResource, ResourceAllocationContext::FreeThread));
     
         Resource* pRenameResource = cookie.Get();
         pResource->m_LastRenamedResource = pRenameResource->GetIdentity()->m_suballocation;
@@ -1197,7 +1197,7 @@ bool TRANSLATION_API BatchedContext::MapForRenameViaCopy(BatchedResource* pResou
 
         if (!pResource->m_DynamicTexturePlaneData.AnyPlaneMapped())
         {
-            SafeRenameResourceCookie cookie(ImmCtx, ImmCtx.CreateRenameCookie(pResource->m_pResource, ResourceAllocationContext::FreeThread));
+            SafeRenameResourceCookie cookie(ImmCtx.CreateRenameCookie(pResource->m_pResource, ResourceAllocationContext::FreeThread));
 
             Resource* pRenameResource = cookie.Get();
             pResource->m_LastRenamedResource = pRenameResource->GetIdentity()->m_suballocation;

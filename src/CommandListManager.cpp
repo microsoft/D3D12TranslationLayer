@@ -195,34 +195,21 @@ namespace D3D12TranslationLayer
     //----------------------------------------------------------------------------------------------------------------------------------
     void CommandListManager::ResetResidencySet()
     {
-        if (m_pParent->IsResidencyManagementEnabled())
-        {
-            m_pResidencySet = std::unique_ptr<D3DX12Residency::ResidencySet>(
-                m_pParent->GetResidencyManager().CreateResidencySet());
-            m_pResidencySet->Open();
-        }
+        m_pResidencySet = std::make_unique<ResidencySet>();
+        m_pResidencySet->Open((UINT)m_type);
     }
 
     HRESULT CommandListManager::PreExecuteCommandQueueCommand()
     {
         m_bNeedSubmitFence = true;
-        if (m_pParent->IsResidencyManagementEnabled())
-        {
-            m_pResidencySet->Close();
-            return m_pParent->GetResidencyManager().PreExecuteCommandQueueCommand(m_pCommandQueue.get(), m_pResidencySet.get());
-        }
-        return S_OK;
+        m_pResidencySet->Close();
+        return m_pParent->GetResidencyManager().PreExecuteCommandQueueCommand(m_pCommandQueue.get(), (UINT)m_type, m_pResidencySet.get());
     }
 
     HRESULT CommandListManager::PostExecuteCommandQueueCommand()
     {
-        HRESULT hr = S_OK;
-        if (m_pParent->IsResidencyManagementEnabled())
-        {
-            hr = m_pParent->GetResidencyManager().PostExecuteCommandQueueCommand(m_pCommandQueue.get());
-            ResetResidencySet();
-        }
-        return hr;
+        ResetResidencySet();
+        return S_OK;
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
@@ -246,15 +233,9 @@ namespace D3D12TranslationLayer
 
         CloseCommandList(m_pCommandList.get()); // throws
 
-        auto pCommandList = m_pCommandList.get();
-        
-        if (m_pParent->IsResidencyManagementEnabled())
-        {
-            m_pResidencySet->Close();
-        }
+        m_pResidencySet->Close();
 
-        D3DX12Residency::ResidencySet *ppResidencySets[] = { m_pResidencySet.get() };
-        ExecuteCommandListWrapper(m_pCommandQueue.get(), &pCommandList, 1, ppResidencySets);
+        m_pParent->GetResidencyManager().ExecuteCommandList(m_pCommandQueue.get(), (UINT)m_type, m_pCommandList.get(), m_pResidencySet.get());
 
         // Return the command allocator to the pool for recycling
         m_AllocatorPool.ReturnToPool(std::move(m_pCommandAllocator), m_commandListID);
@@ -285,22 +266,6 @@ namespace D3D12TranslationLayer
             m_pParent->m_StatesToReassert |= e_ReassertOnNewCommandList;
         }
         m_pParent->PostSubmitNotification();
-    }
-
-    void CommandListManager::ExecuteCommandListWrapper(
-        _In_ ID3D12CommandQueue *pCommandQueue,
-        _In_reads_(count) ID3D12CommandList **ppCommandLists,
-        _In_ UINT count,
-        _In_opt_count_(count) D3DX12Residency::ResidencySet **ppResidencySets)
-    {
-        if (m_pParent->IsResidencyManagementEnabled())
-        {
-            m_pParent->GetResidencyManager().ExecuteCommandLists(pCommandQueue, ppCommandLists, ppResidencySets, count);
-        }
-        else
-        {
-            pCommandQueue->ExecuteCommandLists(count, ppCommandLists);
-        }
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
@@ -409,7 +374,7 @@ namespace D3D12TranslationLayer
     //----------------------------------------------------------------------------------------------------------------------------------
     void CommandListManager::AddResourceToResidencySet(Resource *pResource)
     {
-        D3DX12Residency::ManagedObject *pResidencyObject = pResource->GetResidencyHandle();
+        ManagedObject *pResidencyObject = pResource->GetResidencyHandle();
         if (pResidencyObject)
         {
             assert(pResidencyObject->IsInitialized());
@@ -569,10 +534,7 @@ namespace D3D12TranslationLayer
         ResetCommandListTrackingData();
         m_pCommandList = nullptr;
 
-        if (m_pParent->IsResidencyManagementEnabled())
-        {
-            m_pResidencySet->Close();
-        }
+        m_pResidencySet->Close();
     }
 
     D3D12_COMMAND_LIST_TYPE CommandListManager::GetD3D12CommandListType(COMMAND_LIST_TYPE type)

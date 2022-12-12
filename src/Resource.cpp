@@ -378,26 +378,15 @@ namespace D3D12TranslationLayer
         if (m_Identity 
             && !m_Identity->m_bSharedResource
             && m_Identity->m_bOwnsUnderlyingResource
-            && m_pParent->IsResidencyManagementEnabled()
             && m_Identity->GetOwnedResource() != nullptr)
         {
             auto &residencyManager = m_pParent->GetResidencyManager();
 
-            // If this resource has already been involved in GPU operations, make 
-            // sure to get pass along the fence value so that it doesn't get evicted 
-            // too early
-            UINT64 residencyManagerGPUSyncValue = 0;
-            if (m_LastUsedCommandListID[(UINT)COMMAND_LIST_TYPE::GRAPHICS] > 0)
-            {
-                // TODO: This should get the current sync point generation, not a per-queue fence value.
-                residencyManager.GetCurrentGPUSyncPoint(m_pParent->GetCommandQueue(COMMAND_LIST_TYPE::GRAPHICS), &residencyManagerGPUSyncValue);
-            }
-
-            m_Identity->m_pResidencyHandle = std::unique_ptr<ResidencyManagedObjectWrapper>(new ResidencyManagedObjectWrapper(m_pParent->GetResidencyManager()));
+            m_Identity->m_pResidencyHandle = std::unique_ptr<ResidencyManagedObjectWrapper>(new ResidencyManagedObjectWrapper(residencyManager));
             D3D12_RESOURCE_DESC resourceDesc12 = m_creationArgs.m_desc12;
             D3D12_RESOURCE_ALLOCATION_INFO allocInfo = m_pParent->m_pDevice12->GetResourceAllocationInfo(m_pParent->GetNodeMask(), 1, &resourceDesc12);
 
-            m_Identity->m_pResidencyHandle->Initialize(m_Identity->GetResource(), allocInfo.SizeInBytes, residencyManagerGPUSyncValue, bIsResident);
+            m_Identity->m_pResidencyHandle->Initialize(m_Identity->GetResource(), allocInfo.SizeInBytes, bIsResident);
         }
     }
 
@@ -518,7 +507,7 @@ namespace D3D12TranslationLayer
                 m_creationArgs.m_bManageResidency = false;
             }
 
-            if (bCompatibilityCreateRequired || !m_creationArgs.m_bManageResidency || !m_pParent->IsResidencyManagementEnabled())
+            if (bCompatibilityCreateRequired || !m_creationArgs.m_bManageResidency)
             {
                 HeapDesc.Flags &= ~D3D12_HEAP_FLAG_CREATE_NOT_RESIDENT;
             }
@@ -602,9 +591,9 @@ namespace D3D12TranslationLayer
         }
     }
 
-    D3DX12Residency::ManagedObject *Resource::GetResidencyHandle()
+    ManagedObject *Resource::GetResidencyHandle()
     {
-        D3DX12Residency::ManagedObject *pObject = nullptr;
+        ManagedObject *pObject = nullptr;
         if (m_Identity && m_Identity->m_pResidencyHandle)
         {
             pObject = &m_Identity->m_pResidencyHandle->GetManagedObject();
@@ -615,10 +604,7 @@ namespace D3D12TranslationLayer
     void Resource::UsedInCommandList(COMMAND_LIST_TYPE commandListType, UINT64 id)
     {
         assert(commandListType != COMMAND_LIST_TYPE::UNKNOWN);
-        if (m_pParent->IsResidencyManagementEnabled())
-        {
-            m_pParent->AddObjectToResidencySet(this, commandListType);
-        }
+        m_pParent->AddObjectToResidencySet(this, commandListType);
         if (m_Identity && m_Identity->HasRestrictedOutstandingResources())
         {
             OutstandingResourceUse resourceUse(commandListType, id);

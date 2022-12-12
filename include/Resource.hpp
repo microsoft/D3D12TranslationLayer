@@ -203,17 +203,17 @@ namespace D3D12TranslationLayer
     // Handles when to start and end tracking for D3DX12ResidencyManager::ManagedObject
     struct ResidencyManagedObjectWrapper
     {
-        ResidencyManagedObjectWrapper(D3DX12Residency::ResidencyManager &residencyManager) : m_residencyManager(residencyManager) {}
+        ResidencyManagedObjectWrapper(ResidencyManager &residencyManager) : m_residencyManager(residencyManager) {}
 
-        // D3DX12Residency::ManagedObject uses a type of linked lists that breaks when copying it around, so disable the copy operator
+        // ManagedObject uses a type of linked lists that breaks when copying it around, so disable the copy operator
         ResidencyManagedObjectWrapper(const ResidencyManagedObjectWrapper&) = delete;
 
-        void Initialize(ID3D12Pageable *pResource, UINT64 resourceSize, UINT64 initialGPUSyncValue = 0, bool isResident = true)
+        void Initialize(ID3D12Pageable *pResource, UINT64 resourceSize, bool isResident = true)
         {
-            m_residencyHandle.Initialize(pResource, resourceSize, initialGPUSyncValue);
+            m_residencyHandle.Initialize(pResource, resourceSize);
             if (!isResident)
             {
-                m_residencyHandle.ResidencyStatus = D3DX12Residency::ManagedObject::RESIDENCY_STATUS::EVICTED;
+                m_residencyHandle.ResidencyStatus = ManagedObject::RESIDENCY_STATUS::EVICTED;
             }
             m_residencyManager.BeginTrackingObject(&m_residencyHandle);
         }
@@ -222,10 +222,10 @@ namespace D3D12TranslationLayer
         {
             m_residencyManager.EndTrackingObject(&m_residencyHandle);
         }
-        D3DX12Residency::ManagedObject &GetManagedObject() { return m_residencyHandle; }
+        ManagedObject &GetManagedObject() { return m_residencyHandle; }
     private:
-        D3DX12Residency::ManagedObject m_residencyHandle;
-        D3DX12Residency::ResidencyManager &m_residencyManager;
+        ManagedObject m_residencyHandle;
+        ResidencyManager &m_residencyManager;
     };
 
     // Wraps the BufferSuballocation with functions that help automatically account for the 
@@ -539,7 +539,7 @@ namespace D3D12TranslationLayer
         bool IsResident()
         {
             return !GetIdentity()->m_pResidencyHandle ||
-                GetIdentity()->m_pResidencyHandle->GetManagedObject().ResidencyStatus == D3DX12Residency::ManagedObject::RESIDENCY_STATUS::RESIDENT;
+                GetIdentity()->m_pResidencyHandle->GetManagedObject().ResidencyStatus == ManagedObject::RESIDENCY_STATUS::RESIDENT;
         }
 
         static bool IsSuballocatedFromSameHeap(Resource *pResourceA, Resource *pResourceB)
@@ -604,7 +604,7 @@ namespace D3D12TranslationLayer
             else
             {
                 return AppDesc()->BindFlags() &  RESOURCE_BIND_DECODER ||
-                       IsLockableSharedBuffer() ||
+                       m_creationArgs.m_heapDesc.Properties.CPUPageProperty == D3D12_CPU_PAGE_PROPERTY_NOT_AVAILABLE ||
                        (AppDesc()->Usage() == RESOURCE_USAGE_DYNAMIC && Parent()->ResourceDimension12() == D3D12_RESOURCE_DIMENSION_BUFFER && (AppDesc()->CPUAccessFlags() & RESOURCE_CPU_ACCESS_READ) != 0);
             }
         }
@@ -696,7 +696,7 @@ namespace D3D12TranslationLayer
         SResourceIdentity* GetIdentity() { return m_Identity.get(); }
         CResourceBindings& GetBindingState() { return m_currentBindings; }
 
-        D3DX12Residency::ManagedObject *GetResidencyHandle();
+        ManagedObject *GetResidencyHandle();
     private:
         template <typename ViewType, typename UnbindFunction>
         void UnbindList(LIST_ENTRY list, UnbindFunction& unbindFunction)

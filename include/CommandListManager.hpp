@@ -29,17 +29,10 @@ namespace D3D12TranslationLayer
         template <typename TFunc> void ExecuteCommandQueueCommand(TFunc&& func)
         {
             m_bNeedSubmitFence = true;
-            if (m_pParent->IsResidencyManagementEnabled())
-            {
-                m_pResidencySet->Close();
-                m_pParent->GetResidencyManager().SubmitCommandQueueCommand(
-                    m_pCommandQueue.get(), std::forward<TFunc>(func), m_pResidencySet.get());
-                ResetResidencySet();
-            }
-            else
-            {
-                func();
-            }
+            m_pResidencySet->Close();
+            m_pParent->GetResidencyManager().SubmitCommandQueueCommand(
+                m_pCommandQueue.get(), (UINT)m_type, m_pResidencySet.get(), std::forward<TFunc>(func));
+            ResetResidencySet();
         }
 
         HRESULT PreExecuteCommandQueueCommand(); //throws
@@ -89,12 +82,6 @@ namespace D3D12TranslationLayer
 
         void SubmitCommandListImpl();
 
-        void ExecuteCommandListWrapper(
-            _In_ ID3D12CommandQueue *pCommandQueue, 
-            _In_reads_(count) ID3D12CommandList **ppCommandLists, 
-            _In_ UINT count, 
-            _In_opt_count_(count) D3DX12Residency::ResidencySet **ppResidencySets);
-
         ImmediateContext* const                             m_pParent; // weak-ref
         const COMMAND_LIST_TYPE                             m_type;
         unique_comptr<ID3D12CommandList>                    m_pCommandList;
@@ -105,7 +92,7 @@ namespace D3D12TranslationLayer
 #if TRANSLATION_LAYER_DBG
         Fence                                               m_StallFence{m_pParent, FENCE_FLAG_NONE, 0};
 #endif
-        std::unique_ptr<D3DX12Residency::ResidencySet>      m_pResidencySet;
+        std::unique_ptr<ResidencySet>      m_pResidencySet;
         UINT                                                m_NumFlushesWithNoReadback = 0;
         UINT                                                m_NumCommands = 0;
         UINT                                                m_NumDraws = 0;

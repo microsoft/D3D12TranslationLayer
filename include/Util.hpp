@@ -409,6 +409,58 @@ namespace D3D12TranslationLayer
         T const& operator[](UINT i) const { assert(m_pBegin + i < m_pEnd); return m_pBegin[i]; }
     };
 
+    template <typename T, size_t InlineSize>
+    struct PreallocatedInlineArray
+    {
+        T m_InlineArray[InlineSize];
+        PreallocatedArray<T> m_Extra;
+        UINT m_Size;
+
+        template<typename... TConstructionArgs>
+        PreallocatedInlineArray(UINT ArraySize, void*& Address, TConstructionArgs&&... constructionArgs)
+            : m_Extra(ArraySize > InlineSize ? ArraySize - InlineSize : 0, Address, std::forward<TConstructionArgs>(constructionArgs)...)
+            , m_Size(ArraySize)
+        {
+            // Leave uninitialized otherwise
+            if constexpr (!std::is_trivially_constructible<T>::value)
+            {
+                for (UINT i = 0; i < m_Size && i < InlineSize; ++i)
+                {
+                    new (std::addressof(m_InlineArray[i])) T(std::forward<TConstructionArgs>(constructionArgs)...);
+                }
+            }
+        }
+        ~PreallocatedInlineArray()
+        {
+            clearInline();
+        }
+        PreallocatedInlineArray(PreallocatedInlineArray const&) = delete;
+        PreallocatedInlineArray& operator=(PreallocatedInlineArray const&) = delete;
+
+        void clearInline()
+        {
+            if constexpr (!std::is_trivially_destructible<T>::value)
+            {
+                for (UINT i = 0; i < m_Size && i < InlineSize; ++i)
+                {
+                    m_InlineArray[i].~T();
+                }
+            }
+        }
+        void clear()
+        {
+            clearInline();
+            m_Extra.clear();
+            m_Size = 0;
+        }
+
+        size_t size() const { return m_Size; }
+        bool empty() const { return m_Size == 0; }
+
+        T &operator[](UINT i) { assert(i < m_Size); return i < InlineSize ? m_InlineArray[i] : m_Extra[i - InlineSize]; }
+        T const& operator[](UINT i) const { assert(i < m_Size); return i < InlineSize ? m_InlineArray[i] : m_Extra[i - InlineSize]; }
+    };
+
 #if TRANSLATION_LAYER_DBG
     enum ED3D11On12DebugFlags
     {

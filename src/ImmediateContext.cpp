@@ -104,6 +104,7 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
 #endif
     , m_bUseRingBufferDescriptorHeaps(args.IsXbox)
     , m_BltResolveManager(*this)
+    , m_residencyManager(*this)
 {
     UNREFERENCED_PARAMETER(debugFlags);
     memset(m_BlendFactor, 0, sizeof(m_BlendFactor));
@@ -113,6 +114,11 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
     memset(m_aViewports, 0, sizeof(m_aViewports));
 
     HRESULT hr = S_OK;
+    if (!m_CreationArgs.UseResidencyManagement)
+    {
+        // Residency management is no longer optional
+        ThrowFailure(E_INVALIDARG);
+    }
 
     if (m_CreationArgs.RenamingIsMultithreaded)
     {
@@ -163,11 +169,8 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
     // Guesstimating that we'll generally have 2 command lists per frame (one that doesn't touch the back buffer
     // and one that does)
     const UINT maxFlushLatency = maxFrameLatency * 2;
-        
-    if (IsResidencyManagementEnabled())
-    {
-        m_residencyManagerWrapper.Initialize(pDevice, nodeIndex, m_pDXCoreAdapter.get(), m_pDXGIAdapter.get(), maxFlushLatency);
-    }
+
+    m_residencyManager.Initialize(nodeIndex, m_pDXCoreAdapter.get(), m_pDXGIAdapter.get());
 
     m_UAVDeclScratch.reserve(D3D11_1_UAV_SLOT_COUNT); // throw( bad_alloc )
     m_vUAVBarriers.reserve(D3D11_1_UAV_SLOT_COUNT); // throw( bad_alloc )
@@ -4566,7 +4569,7 @@ bool TRANSLATION_API ImmediateContext::Map(Resource* pResource, UINT Subresource
         {
             case MAP_TYPE_READ:
             case MAP_TYPE_READWRITE:
-                if (pResource->AppDesc()->ResourceDimension() == D3D12_RESOURCE_DIMENSION_BUFFER && !pResource->IsLockableSharedBuffer())
+                if (pResource->m_creationArgs.m_heapDesc.Properties.CPUPageProperty != D3D12_CPU_PAGE_PROPERTY_NOT_AVAILABLE)
                 {
                     return MapUnderlyingSynchronize(pResource, Subresource, MapType, DoNotWait, pReadWriteRange, pMappedSubresource);
                 }
@@ -4575,7 +4578,7 @@ bool TRANSLATION_API ImmediateContext::Map(Resource* pResource, UINT Subresource
                     return MapDynamicTexture(pResource, Subresource, MapType, DoNotWait, pReadWriteRange, pMappedSubresource);
                 }
             case MAP_TYPE_WRITE_DISCARD:
-                if (pResource->AppDesc()->ResourceDimension() == D3D12_RESOURCE_DIMENSION_BUFFER && !pResource->IsLockableSharedBuffer())
+                if (pResource->m_creationArgs.m_heapDesc.Properties.CPUPageProperty != D3D12_CPU_PAGE_PROPERTY_NOT_AVAILABLE)
                 {
                     return MapDiscardBuffer(pResource, Subresource, MapType, DoNotWait, pReadWriteRange, pMappedSubresource);
                 }
@@ -4589,7 +4592,7 @@ bool TRANSLATION_API ImmediateContext::Map(Resource* pResource, UINT Subresource
                 return MapUnderlying(pResource, Subresource, MapType, pReadWriteRange, pMappedSubresource);
             case MAP_TYPE_WRITE:
                 assert(pResource->AppDesc()->ResourceDimension() == D3D12_RESOURCE_DIMENSION_BUFFER);
-                if (!pResource->IsLockableSharedBuffer())
+                if (pResource->m_creationArgs.m_heapDesc.Properties.CPUPageProperty != D3D12_CPU_PAGE_PROPERTY_NOT_AVAILABLE)
                 {
                     return MapUnderlyingSynchronize(pResource, Subresource, MapType, DoNotWait, pReadWriteRange, pMappedSubresource);
                 }
@@ -4616,7 +4619,7 @@ void TRANSLATION_API ImmediateContext::Unmap(Resource* pResource, UINT Subresour
         UnmapDefault(pResource, Subresource, pReadWriteRange);
         break;
     case RESOURCE_USAGE_DYNAMIC:
-        if (pResource->UnderlyingResourceIsSuballocated() || (pResource->AppDesc()->ResourceDimension() == D3D12_RESOURCE_DIMENSION_BUFFER && !pResource->IsLockableSharedBuffer()))
+        if (pResource->m_creationArgs.m_heapDesc.Properties.CPUPageProperty != D3D12_CPU_PAGE_PROPERTY_NOT_AVAILABLE)
         {
             UnmapUnderlyingSimple(pResource, Subresource, pReadWriteRange);
         }
