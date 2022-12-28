@@ -873,6 +873,7 @@ public:
     unique_comptr<ID3D12Device1> m_pDevice12_1;
     unique_comptr<ID3D12Device2> m_pDevice12_2; // TODO: Instead of adding more next time, replace
     unique_comptr<ID3D12CompatibilityDevice> m_pCompatDevice;
+    unique_comptr<ID3D12CommandQueue> m_pSyncOnlyQueue;
 private:
     std::unique_ptr<CommandListManager> m_CommandLists[(UINT)COMMAND_LIST_TYPE::MAX_VALID];
 
