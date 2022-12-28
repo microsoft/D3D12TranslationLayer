@@ -139,6 +139,9 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
 
     D3D12TranslationLayer::InitializeListHead(&m_ActiveQueryList);
 
+    D3D12_COMMAND_QUEUE_DESC SyncOnlyQueueDesc = { D3D12_COMMAND_LIST_TYPE_NONE };
+    (void)m_pDevice12->CreateCommandQueue(&SyncOnlyQueueDesc, IID_PPV_ARGS(&m_pSyncOnlyQueue));
+
     LUID adapterLUID = pDevice->GetAdapterLuid();
     {
         CComPtr<IDXCoreAdapterFactory> pFactory;
@@ -5490,9 +5493,28 @@ TRANSLATION_API void ImmediateContext::Signal(
     UINT64 Value
     )
 {
-    Flush(D3D12TranslationLayer::COMMAND_LIST_TYPE_GRAPHICS_MASK);
-    ThrowFailure(GetCommandQueue(COMMAND_LIST_TYPE::GRAPHICS)->Signal(pFence->Get(), Value));
-    pFence->UsedInCommandList(COMMAND_LIST_TYPE::GRAPHICS, GetCommandListID(COMMAND_LIST_TYPE::GRAPHICS));
+    if (m_pSyncOnlyQueue)
+    {
+        Flush(D3D12TranslationLayer::COMMAND_LIST_TYPE_ALL_MASK);
+        for (UINT listTypeIndex = 0; listTypeIndex < static_cast<UINT>(COMMAND_LIST_TYPE::MAX_VALID); ++listTypeIndex)
+        {
+            auto pManager = m_CommandLists[listTypeIndex].get();
+            if (!pManager)
+            {
+                continue;
+            }
+            UINT64 LastSignaledValue = pManager->GetCommandListID() - 1;
+            ThrowFailure(m_pSyncOnlyQueue->Wait(pManager->GetFence()->Get(), LastSignaledValue));
+            pFence->UsedInCommandList(static_cast<COMMAND_LIST_TYPE>(listTypeIndex), LastSignaledValue);
+        }
+        ThrowFailure(m_pSyncOnlyQueue->Signal(pFence->Get(), Value));
+    }
+    else
+    {
+        Flush(D3D12TranslationLayer::COMMAND_LIST_TYPE_GRAPHICS_MASK);
+        ThrowFailure(GetCommandQueue(COMMAND_LIST_TYPE::GRAPHICS)->Signal(pFence->Get(), Value));
+        pFence->UsedInCommandList(COMMAND_LIST_TYPE::GRAPHICS, GetCommandListID(COMMAND_LIST_TYPE::GRAPHICS) - 1);
+    }
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
