@@ -2606,20 +2606,31 @@ void TRANSLATION_API ImmediateContext::ResourceResolveSubresource(Resource* pDst
     assert(pSrc->m_Identity->m_bOwnsUnderlyingResource);
     
     assert(pSrc->SubresourceMultiplier() == pDst->SubresourceMultiplier());
-    UINT SubresourceMultiplier = pSrc->SubresourceMultiplier();
-    for (UINT i = 0; i < SubresourceMultiplier; ++i)
-    {
-        // Input subresources are plane-extended, except when dealing with depth+stencil
-        UINT CurSrcSub = pSrc->GetExtendedSubresourceIndex(SrcSubresource, i);
-        UINT CurDstSub = pDst->GetExtendedSubresourceIndex(DstSubresource, i);
-        m_ResourceStateManager.TransitionSubresource(pDst, CurDstSub, D3D12_RESOURCE_STATE_RESOLVE_DEST);
-        m_ResourceStateManager.TransitionSubresource(pSrc, CurSrcSub, D3D12_RESOURCE_STATE_RESOLVE_SOURCE);
-        m_ResourceStateManager.ApplyAllResourceTransitions();
 
-        auto pAPIDst = pDst->GetUnderlyingResource();
-        auto pAPISrc = pSrc->GetUnderlyingResource();
-        GetGraphicsCommandList()->ResolveSubresource(pAPIDst, CurDstSub, pAPISrc, CurSrcSub, Format);
+    // Originally this would loop based on SubResourceMultiplier, allowing multiple planes to be resolved.
+    // In practice, this was really only hit by depth+stencil formats, but we can only resolve the depth portion
+    // since resolving the S8_UINT bit using averaging isn't valid.
+    // Input subresources are plane-extended, except when dealing with depth+stencil
+    UINT CurSrcSub = pSrc->GetExtendedSubresourceIndex(SrcSubresource, 0);
+    UINT CurDstSub = pDst->GetExtendedSubresourceIndex(DstSubresource, 0);
+    m_ResourceStateManager.TransitionSubresource(pDst, CurDstSub, D3D12_RESOURCE_STATE_RESOLVE_DEST);
+    m_ResourceStateManager.TransitionSubresource(pSrc, CurSrcSub, D3D12_RESOURCE_STATE_RESOLVE_SOURCE);
+    m_ResourceStateManager.ApplyAllResourceTransitions();
+
+    auto pAPIDst = pDst->GetUnderlyingResource();
+    auto pAPISrc = pSrc->GetUnderlyingResource();
+
+    // ref for formats supporting MSAA resolve https://learn.microsoft.com/en-us/windows/win32/direct3ddxgi/format-support-for-direct3d-11-1-feature-level-hardware
+
+    switch(Format)
+    {
+        // Can't resolve due to stencil UINT. Claim it's typeless and just resolve the depth plane
+        case DXGI_FORMAT_D24_UNORM_S8_UINT: Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS; break;
+        case DXGI_FORMAT_D32_FLOAT_S8X24_UINT: Format = DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS; break;
+        // Can't resolve this particular flavor of depth format. Claim it's R16_UNORM instead
+        case DXGI_FORMAT_D16_UNORM: Format = DXGI_FORMAT_R16_UNORM; break;
     }
+    GetGraphicsCommandList()->ResolveSubresource(pAPIDst, CurDstSub, pAPISrc, CurSrcSub, Format);
     PostRender(COMMAND_LIST_TYPE::GRAPHICS);
 }
 
