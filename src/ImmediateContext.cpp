@@ -163,16 +163,6 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
         ThrowFailure(pFactory->EnumAdapterByLuid(adapterLUID, IID_PPV_ARGS(&m_pDXGIAdapter)));
     }
 
-    // TODO: 8476291 Standard maxFrameLatency value picked for now. We should hook up 9on12/11on12 to pass this 
-    // into the residency manager. Additionally, 9on12/11on12 can have max frame latency changed in the middle of an app,
-    // we need to also modify the residency manager to be able to change up the frame latency rather than specify this
-    // once at the contructors.
-    const UINT maxFrameLatency = 3;
-
-    // Guesstimating that we'll generally have 2 command lists per frame (one that doesn't touch the back buffer
-    // and one that does)
-    const UINT maxFlushLatency = maxFrameLatency * 2;
-
     m_residencyManager.Initialize(nodeIndex, m_pDXCoreAdapter.get(), m_pDXGIAdapter.get());
 
     m_UAVDeclScratch.reserve(D3D11_1_UAV_SLOT_COUNT); // throw( bad_alloc )
