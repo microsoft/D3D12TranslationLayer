@@ -222,8 +222,12 @@ HRESULT ResidencyManager::ProcessPagingWork(UINT CommandListIndex, ResidencySet 
                     }
 
                     // If there is nothing to trim OR the only objects 'Resident' are the ones about to be used by this execute.
-                    if (pResidentHead == nullptr ||
-                        std::equal(WaitedFenceValues, std::end(WaitedFenceValues), LastSubmittedFenceValues))
+                    bool ForceResidency = pResidentHead == nullptr;
+                    for (UINT i = 0; i < (UINT)COMMAND_LIST_TYPE::MAX_VALID && !ForceResidency; ++i)
+                    {
+                        ForceResidency = pResidentHead->LastUsedFenceValues[i] > LastSubmittedFenceValues[i];
+                    }
+                    if (ForceResidency)
                     {
                         // Make resident the rest of the objects as there is nothing left to trim
                         UINT32 NumObjects = (UINT32)MakeResidentList.size() - ObjectsMadeResident;
