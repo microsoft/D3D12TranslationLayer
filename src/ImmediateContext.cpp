@@ -2139,6 +2139,7 @@ ID3D12PipelineState* ImmediateContext::PrepareGenerateMipsObjects(DXGI_FORMAT Fo
     PSODesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
     PSODesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
     PSODesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+    PSODesc.DepthStencilState.DepthEnable = FALSE;
     PSODesc.pRootSignature = m_GenerateMipsRootSig.GetRootSignature();
     PSODesc.VS = { g_GenMipsVS, sizeof(g_GenMipsVS) };
     switch(Dimension)
