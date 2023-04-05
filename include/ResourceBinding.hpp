@@ -254,7 +254,7 @@ namespace D3D12TranslationLayer
         }
 
         bool UpdateBinding(_In_range_(0, NumBindings - 1) UINT slot, _In_opt_ TBindable* pBindable, EShaderStage stage) noexcept;
-        bool IsDirty(TDeclVector const& New, bool bKnownDirty) noexcept;
+        bool IsDirty(TDeclVector const& New, UINT rootSignatureBucketSize, bool bKnownDirty) noexcept;
 
         NullType GetNullType(_In_range_(0, NumBindings - 1) UINT slot) const noexcept
         {
@@ -304,10 +304,10 @@ namespace D3D12TranslationLayer
 
         bool UpdateBinding(_In_range_(0, NumBindings - 1) UINT slot, _In_opt_ Resource* pBindable, EShaderStage stage) noexcept;
 
-        bool IsDirty(_In_range_(0, NumBindings) UINT New) noexcept
+        bool IsDirty(_In_range_(0, NumBindings) UINT rootSignatureBucketSize) noexcept
         {
-            bool bDirty = New > m_ShaderData || DirtyBitsUpTo(New);
-            m_ShaderData = New;
+            bool bDirty = rootSignatureBucketSize > m_ShaderData || DirtyBitsUpTo(rootSignatureBucketSize);
+            m_ShaderData = rootSignatureBucketSize;
 
             return bDirty;
         }
@@ -338,10 +338,10 @@ namespace D3D12TranslationLayer
         bool UpdateBinding(_In_range_(0, NumBindings - 1) UINT slot,
             _In_ Sampler* pBindable) noexcept;
 
-        bool IsDirty(_In_range_(0, NumBindings) UINT New) noexcept
+        bool IsDirty(_In_range_(0, NumBindings) UINT rootSignatureBucketSize) noexcept
         {
-            bool bDirty = New > m_ShaderData || DirtyBitsUpTo(m_ShaderData);
-            m_ShaderData = New;
+            bool bDirty = rootSignatureBucketSize > m_ShaderData || DirtyBitsUpTo(rootSignatureBucketSize);
+            m_ShaderData = rootSignatureBucketSize;
 
             return bDirty;
         }

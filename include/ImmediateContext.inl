@@ -239,7 +239,7 @@ inline bool CViewBoundState<TBindable, NumBindSlots>::UpdateBinding(_In_range_(0
 
 //----------------------------------------------------------------------------------------------------------------------------------
 template <typename TBindable, UINT NumBindSlots>
-inline bool CViewBoundState<TBindable, NumBindSlots>::IsDirty(TDeclVector const& New, bool bKnownDirty) noexcept
+inline bool CViewBoundState<TBindable, NumBindSlots>::IsDirty(TDeclVector const& New, UINT rootSignatureBucketSize, bool bKnownDirty) noexcept
 {
     // Note: Even though there are vector resize ops here, they cannot throw,
     // since the backing memory for the vector was already allocated using reserve(NumBindSlots)
@@ -263,14 +263,22 @@ inline bool CViewBoundState<TBindable, NumBindSlots>::IsDirty(TDeclVector const&
         }
     }
 
-    if (!bDirty)
+    if (m_ShaderData.size() < rootSignatureBucketSize)
     {
-        bDirty = DirtyBitsUpTo(static_cast<UINT>(New.size()));
+        // Did we move to a larger bucket size? If so, fill the extra shader data to null (unknown) descriptors
+        m_ShaderData.resize(rootSignatureBucketSize, c_AnyNull);
+        bDirty = true;
+    }
+    else if (m_ShaderData.size() > rootSignatureBucketSize)
+    {
+        //Did we move to a smaller bucket size? If so, shrink the shader data to fit
+        m_ShaderData.resize(rootSignatureBucketSize);
+        bDirty = true;
     }
 
-    if (bDirty)
+    if (!bDirty)
     {
-        m_ShaderData.resize(New.size());
+        bDirty = DirtyBitsUpTo(static_cast<UINT>(rootSignatureBucketSize));
     }
 
     return bDirty;
@@ -544,39 +552,41 @@ inline void ImmediateContext::PreDraw() noexcept(false)
         m_CurrentState.m_pLastGraphicsRootSig = m_CurrentState.m_pPSO->GetRootSignature();
     }
 
+    auto& RootSigDesc = m_CurrentState.m_pPSO->GetRootSignature()->m_Desc;
+
     // Shader-declared bindings do not set pipeline dirty bits at bind time, only slot dirty bits
     // These slot dirty bits are only interesting if they are below the maximum shader-declared slot
     // Translate slot dirty bits to pipeline dirty bits now, since we know the shader declarations
-    auto pfnSetDirtySRVBindings = [this](SStageState& Stage, SShaderDecls* pShader, EDirtyBits eBit)
+    auto pfnSetDirtySRVBindings = [this](SStageState& Stage, SShaderDecls* pShader, const RootSignatureDesc::ShaderStage& shaderStage, EDirtyBits eBit)
     {
         const TDeclVector EmptyDecls;
-        if (Stage.m_SRVs.IsDirty(pShader ? pShader->m_ResourceDecls : EmptyDecls, !!(m_DirtyStates & eBit))) { m_DirtyStates |= eBit; }
+        if (Stage.m_SRVs.IsDirty(pShader ? pShader->m_ResourceDecls : EmptyDecls, shaderStage.GetSRVBindingCount(), !!(m_DirtyStates & eBit))) { m_DirtyStates |= eBit; }
     };
-    auto pfnSetDirtyCBBindings = [this](SStageState& Stage, SShaderDecls* pShader, EDirtyBits eBit)
+    auto pfnSetDirtyCBBindings = [this](SStageState& Stage, const RootSignatureDesc::ShaderStage& shaderStage, EDirtyBits eBit)
     {
-        if (Stage.m_CBs.IsDirty(pShader ? pShader->m_NumCBs : 0)) { m_DirtyStates |= eBit; }
+        if (Stage.m_CBs.IsDirty(shaderStage.GetCBBindingCount())) { m_DirtyStates |= eBit; }
     };
-    auto pfnSetDirtySamplerBindings = [this](SStageState& Stage, SShaderDecls* pShader, EDirtyBits eBit)
+    auto pfnSetDirtySamplerBindings = [this](SStageState& Stage, const RootSignatureDesc::ShaderStage& shaderStage, EDirtyBits eBit)
     {
-        if (Stage.m_Samplers.IsDirty(pShader ? pShader->m_NumSamplers : 0)) { m_DirtyStates |= eBit; }
+        if (Stage.m_Samplers.IsDirty(shaderStage.GetSamplerBindingCount())) { m_DirtyStates |= eBit; }
     };
-    pfnSetDirtySRVBindings(m_CurrentState.m_PS, m_CurrentState.m_pPSO->GetShader<e_PS>(), e_PSShaderResourcesDirty);
-    pfnSetDirtySRVBindings(m_CurrentState.m_VS, m_CurrentState.m_pPSO->GetShader<e_VS>(), e_VSShaderResourcesDirty);
-    pfnSetDirtySRVBindings(m_CurrentState.m_GS, m_CurrentState.m_pPSO->GetShader<e_GS>(), e_GSShaderResourcesDirty);
-    pfnSetDirtySRVBindings(m_CurrentState.m_HS, m_CurrentState.m_pPSO->GetShader<e_HS>(), e_HSShaderResourcesDirty);
-    pfnSetDirtySRVBindings(m_CurrentState.m_DS, m_CurrentState.m_pPSO->GetShader<e_DS>(), e_DSShaderResourcesDirty);
+    pfnSetDirtySRVBindings(m_CurrentState.m_PS, m_CurrentState.m_pPSO->GetShader<e_PS>(), RootSigDesc.GetShaderStage<e_PS>(), e_PSShaderResourcesDirty);
+    pfnSetDirtySRVBindings(m_CurrentState.m_VS, m_CurrentState.m_pPSO->GetShader<e_VS>(), RootSigDesc.GetShaderStage<e_VS>(), e_VSShaderResourcesDirty);
+    pfnSetDirtySRVBindings(m_CurrentState.m_GS, m_CurrentState.m_pPSO->GetShader<e_GS>(), RootSigDesc.GetShaderStage<e_GS>(), e_GSShaderResourcesDirty);
+    pfnSetDirtySRVBindings(m_CurrentState.m_HS, m_CurrentState.m_pPSO->GetShader<e_HS>(), RootSigDesc.GetShaderStage<e_HS>(), e_HSShaderResourcesDirty);
+    pfnSetDirtySRVBindings(m_CurrentState.m_DS, m_CurrentState.m_pPSO->GetShader<e_DS>(), RootSigDesc.GetShaderStage<e_DS>(), e_DSShaderResourcesDirty);
 
-    pfnSetDirtyCBBindings(m_CurrentState.m_PS, m_CurrentState.m_pPSO->GetShader<e_PS>(), e_PSConstantBuffersDirty);
-    pfnSetDirtyCBBindings(m_CurrentState.m_VS, m_CurrentState.m_pPSO->GetShader<e_VS>(), e_VSConstantBuffersDirty);
-    pfnSetDirtyCBBindings(m_CurrentState.m_GS, m_CurrentState.m_pPSO->GetShader<e_GS>(), e_GSConstantBuffersDirty);
-    pfnSetDirtyCBBindings(m_CurrentState.m_HS, m_CurrentState.m_pPSO->GetShader<e_HS>(), e_HSConstantBuffersDirty);
-    pfnSetDirtyCBBindings(m_CurrentState.m_DS, m_CurrentState.m_pPSO->GetShader<e_DS>(), e_DSConstantBuffersDirty);
+    pfnSetDirtyCBBindings(m_CurrentState.m_PS, RootSigDesc.GetShaderStage<e_PS>(), e_PSConstantBuffersDirty);
+    pfnSetDirtyCBBindings(m_CurrentState.m_VS, RootSigDesc.GetShaderStage<e_VS>(), e_VSConstantBuffersDirty);
+    pfnSetDirtyCBBindings(m_CurrentState.m_GS, RootSigDesc.GetShaderStage<e_GS>(), e_GSConstantBuffersDirty);
+    pfnSetDirtyCBBindings(m_CurrentState.m_HS, RootSigDesc.GetShaderStage<e_HS>(), e_HSConstantBuffersDirty);
+    pfnSetDirtyCBBindings(m_CurrentState.m_DS, RootSigDesc.GetShaderStage<e_DS>(), e_DSConstantBuffersDirty);
 
-    pfnSetDirtySamplerBindings(m_CurrentState.m_PS, m_CurrentState.m_pPSO->GetShader<e_PS>(), e_PSSamplersDirty);
-    pfnSetDirtySamplerBindings(m_CurrentState.m_VS, m_CurrentState.m_pPSO->GetShader<e_VS>(), e_VSSamplersDirty);
-    pfnSetDirtySamplerBindings(m_CurrentState.m_GS, m_CurrentState.m_pPSO->GetShader<e_GS>(), e_GSSamplersDirty);
-    pfnSetDirtySamplerBindings(m_CurrentState.m_HS, m_CurrentState.m_pPSO->GetShader<e_HS>(), e_HSSamplersDirty);
-    pfnSetDirtySamplerBindings(m_CurrentState.m_DS, m_CurrentState.m_pPSO->GetShader<e_DS>(), e_DSSamplersDirty);
+    pfnSetDirtySamplerBindings(m_CurrentState.m_PS, RootSigDesc.GetShaderStage<e_PS>(), e_PSSamplersDirty);
+    pfnSetDirtySamplerBindings(m_CurrentState.m_VS, RootSigDesc.GetShaderStage<e_VS>(), e_VSSamplersDirty);
+    pfnSetDirtySamplerBindings(m_CurrentState.m_GS, RootSigDesc.GetShaderStage<e_GS>(), e_GSSamplersDirty);
+    pfnSetDirtySamplerBindings(m_CurrentState.m_HS, RootSigDesc.GetShaderStage<e_HS>(), e_HSSamplersDirty);
+    pfnSetDirtySamplerBindings(m_CurrentState.m_DS, RootSigDesc.GetShaderStage<e_DS>(), e_DSSamplersDirty);
 
     // Note: UAV decl scratch memory is reserved upfront, so these operations will not throw.
     m_UAVDeclScratch.clear();
@@ -603,7 +613,7 @@ inline void ImmediateContext::PreDraw() noexcept(false)
     pfnMergeUAVDecls(m_CurrentState.m_pPSO->GetShader<e_GS>());
     pfnMergeUAVDecls(m_CurrentState.m_pPSO->GetShader<e_HS>());
     pfnMergeUAVDecls(m_CurrentState.m_pPSO->GetShader<e_DS>());
-    if (m_CurrentState.m_UAVs.IsDirty(m_UAVDeclScratch, !!(m_DirtyStates & e_UnorderedAccessViewsDirty)))
+    if (m_CurrentState.m_UAVs.IsDirty(m_UAVDeclScratch, RootSigDesc.GetUAVBindingCount(), !!(m_DirtyStates & e_UnorderedAccessViewsDirty)))
     {
         m_DirtyStates |= e_UnorderedAccessViewsDirty;
     }
@@ -611,8 +621,6 @@ inline void ImmediateContext::PreDraw() noexcept(false)
     // Now that pipeline dirty bits are set appropriately, check if we need to update the descriptor heap
     UINT ViewHeapSlot = ReserveSlotsForBindings(m_ViewHeap, &ImmediateContext::CalculateViewSlotsForBindings<false>); // throw( _com_error )
     UINT SamplerHeapSlot = ReserveSlotsForBindings(m_SamplerHeap, &ImmediateContext::CalculateSamplerSlotsForBindings<false>); // throw( _com_error )
-
-    auto& RootSigDesc = m_CurrentState.m_pPSO->GetRootSignature()->m_Desc;
 
     auto& UAVBindings = m_CurrentState.m_UAVs;
     UINT numUAVs = RootSigDesc.GetUAVBindingCount();
@@ -1129,12 +1137,15 @@ inline void ImmediateContext::PreDispatch() noexcept(false)
     }
 
     // See PreDraw for comments regarding how dirty bits for bindings are managed
+    auto& RootSigDesc = m_CurrentState.m_pPSO->GetRootSignature()->m_Desc;
+    auto& shaderStage = RootSigDesc.GetShaderStage<e_CS>();
+
     const TDeclVector EmptyDecls;
     auto pComputeShader = m_CurrentState.m_pPSO->GetShader<e_CS>();
-    m_DirtyStates |= m_CurrentState.m_CS.m_SRVs.IsDirty(pComputeShader ? pComputeShader->m_ResourceDecls : EmptyDecls, !!(m_DirtyStates & e_CSShaderResourcesDirty)) ? e_CSShaderResourcesDirty : 0;
-    m_DirtyStates |= m_CurrentState.m_CS.m_CBs.IsDirty(pComputeShader ? pComputeShader->m_NumCBs : 0) ? e_CSConstantBuffersDirty : 0;
-    m_DirtyStates |= m_CurrentState.m_CS.m_Samplers.IsDirty(pComputeShader ? pComputeShader->m_NumSamplers : 0) ? e_CSSamplersDirty : 0;
-    m_DirtyStates |= m_CurrentState.m_CSUAVs.IsDirty(pComputeShader ? pComputeShader->m_UAVDecls : EmptyDecls, !!(m_DirtyStates & e_CSUnorderedAccessViewsDirty)) ? e_CSUnorderedAccessViewsDirty : 0;
+    m_DirtyStates |= m_CurrentState.m_CS.m_SRVs.IsDirty(pComputeShader ? pComputeShader->m_ResourceDecls : EmptyDecls, shaderStage.GetSRVBindingCount(), !!(m_DirtyStates & e_CSShaderResourcesDirty)) ? e_CSShaderResourcesDirty : 0;
+    m_DirtyStates |= m_CurrentState.m_CS.m_CBs.IsDirty(shaderStage.GetCBBindingCount()) ? e_CSConstantBuffersDirty : 0;
+    m_DirtyStates |= m_CurrentState.m_CS.m_Samplers.IsDirty(shaderStage.GetSamplerBindingCount()) ? e_CSSamplersDirty : 0;
+    m_DirtyStates |= m_CurrentState.m_CSUAVs.IsDirty(pComputeShader ? pComputeShader->m_UAVDecls : EmptyDecls, RootSigDesc.GetUAVBindingCount(), !!(m_DirtyStates & e_CSUnorderedAccessViewsDirty)) ? e_CSUnorderedAccessViewsDirty : 0;
 
     // Now that pipeline dirty bits are set appropriately, check if we need to update the descriptor heap
     UINT ViewHeapSlot = ReserveSlotsForBindings(m_ViewHeap, &ImmediateContext::CalculateViewSlotsForBindings<true>); // throw( _com_error )
@@ -1143,8 +1154,6 @@ inline void ImmediateContext::PreDispatch() noexcept(false)
     {
         SamplerHeapSlot = ReserveSlotsForBindings(m_SamplerHeap, &ImmediateContext::CalculateSamplerSlotsForBindings<true>); // throw( _com_error )
     }
-
-    auto& RootSigDesc = m_CurrentState.m_pPSO->GetRootSignature()->m_Desc;
 
     auto& UAVBindings = m_CurrentState.m_CSUAVs;
     UINT numUAVs = RootSigDesc.GetUAVBindingCount();
