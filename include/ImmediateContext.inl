@@ -265,15 +265,15 @@ inline bool CViewBoundState<TBindable, NumBindSlots>::IsDirty(TDeclVector const&
 
     if (m_ShaderData.size() < rootSignatureBucketSize)
     {
-        // Did we move to a larger bucket size? If so, fill the extra shader data to null (unknown) descriptors
+        // Did we move to a larger bucket size? If so, fill the extra shader data to null (unknown) resource dimension
         m_ShaderData.resize(rootSignatureBucketSize, c_AnyNull);
         bDirty = true;
     }
     else if (m_ShaderData.size() > rootSignatureBucketSize)
     {
-        //Did we move to a smaller bucket size? If so, shrink the shader data to fit
+        // Did we move to a smaller bucket size? If so, shrink the shader data to fit
+        // Don't need to mark as dirty since the root signature won't be able to address the stale descriptors
         m_ShaderData.resize(rootSignatureBucketSize);
-        bDirty = true;
     }
 
     if (!bDirty)
