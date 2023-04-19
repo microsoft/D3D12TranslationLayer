@@ -10,7 +10,7 @@ include(FetchContent)
 FetchContent_Declare(
     DirectX-Headers
     GIT_REPOSITORY https://github.com/Microsoft/DirectX-Headers.git
-    GIT_TAG v1.606.4
+    GIT_TAG v1.610.0
 )
 FetchContent_MakeAvailable(DirectX-Headers)
 
