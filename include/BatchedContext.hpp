@@ -510,8 +510,8 @@ public:
 
     struct CreationArgs
     {
-        UINT CreatesAndDestroysAreMultithreaded : 1;
-        UINT SubmitBatchesToWorkerThread : 1;
+        bool CreatesAndDestroysAreMultithreaded : 1;
+        bool SubmitBatchesToWorkerThread : 1;
         BatchedContext* pParentContext;
     };
     struct Callbacks
