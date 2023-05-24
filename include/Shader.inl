@@ -70,11 +70,20 @@ namespace D3D12TranslationLayer
             UINT slot = i + StartSlot;
             Resource* pCB = ppCBs[i];
             CurrentStageState.m_CBs.UpdateBinding(slot, pCB, eShader);
-            // TODO: Track offsets for diffing purposes to conditionally set this bit
-            CurrentStageState.m_CBs.SetDirtyBit(slot);
 
-            CurrentStageState.m_uConstantBufferOffsets[slot] = pFirstConstant ? pFirstConstant[i] : 0;
-            CurrentStageState.m_uConstantBufferCounts[slot] = pNumConstants ? pNumConstants[i] : D3D10_REQ_CONSTANT_BUFFER_ELEMENT_COUNT;
+            UINT prevFirstConstant = CurrentStageState.m_uConstantBufferOffsets[slot];
+            UINT prevNumConstants = CurrentStageState.m_uConstantBufferCounts[slot];
+
+            UINT newFirstConstant = pFirstConstant ? pFirstConstant[i] : 0;
+            UINT newNumConstants = pNumConstants ? pNumConstants[i] : D3D10_REQ_CONSTANT_BUFFER_ELEMENT_COUNT;
+
+            if (prevFirstConstant != newFirstConstant || prevNumConstants != newNumConstants)
+            {
+                CurrentStageState.m_CBs.SetDirtyBit(slot);
+            }
+
+            CurrentStageState.m_uConstantBufferOffsets[slot] = newFirstConstant;
+            CurrentStageState.m_uConstantBufferCounts[slot] = newNumConstants;
         }
     }
 };
