@@ -1408,7 +1408,7 @@ bool BatchedContext::SyncWithBatch(uint64_t& BatchID, bool DoNotFlush, TFunc&& G
             // Not checking thread idle bit as we're already under the lock.
             if (m_QueuedBatches.empty())
             {
-                m_ImmCtx.Flush(FlushMask);
+                m_ImmCtx.PrepForCommandQueueSync(FlushMask);
             }
             else
             {
