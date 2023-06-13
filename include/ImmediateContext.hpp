@@ -1395,6 +1395,8 @@ public:
     bool HasCommands(COMMAND_LIST_TYPE type) noexcept;
     UINT GetCommandListTypeMaskForQuery(EQueryType query) noexcept;
 
+    void PrepForCommandQueueSync(UINT commandListTypeMask);
+
     RootSignature* CreateOrRetrieveRootSignature(RootSignatureDesc const& desc) noexcept(false);
 
 private:

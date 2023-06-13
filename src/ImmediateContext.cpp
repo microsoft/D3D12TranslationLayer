@@ -1150,7 +1150,7 @@ bool TRANSLATION_API ImmediateContext::Flush(UINT commandListTypeMask)
 
     for (UINT i = 0; i < (UINT)COMMAND_LIST_TYPE::MAX_VALID; i++)
     {
-        if (commandListTypeMask & (1 << i) && m_CommandLists[i] && m_CommandLists[i]->HasCommands())
+        if ((commandListTypeMask & (1 << i)) && m_CommandLists[i] && m_CommandLists[i]->HasCommands())
         {
             m_CommandLists[i]->SubmitCommandList();
             bSubmitCommandList = true;
@@ -1161,6 +1161,20 @@ bool TRANSLATION_API ImmediateContext::Flush(UINT commandListTypeMask)
     // these are expected to be cleaned up on a per-flush basis
     PostSubmitNotification();
     return bSubmitCommandList;
+}
+
+//----------------------------------------------------------------------------------------------------------------------------------
+void ImmediateContext::PrepForCommandQueueSync(UINT commandListTypeMask)
+{
+    Flush(commandListTypeMask);
+    for (UINT i = 0; i < (UINT)COMMAND_LIST_TYPE::MAX_VALID; i++)
+    {
+        if ((commandListTypeMask & (1 << i)) && m_CommandLists[i])
+        {
+            assert(!m_CommandLists[i]->HasCommands());
+            m_CommandLists[i]->PrepForCommandQueueSync();
+        }
+    }
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
