@@ -166,7 +166,7 @@ inline bool CBoundState<TBindable, NumBindSlots>::DirtyBitsUpTo(_In_range_(0, Nu
     }
     else
     {
-        constexpr UINT NumBitsPerWord = sizeof(std::bitset<NumBindings>::_Ty) * 8;
+        constexpr UINT NumBitsPerWord = sizeof(::std::conditional_t<NumBindings <= sizeof(unsigned long) * CHAR_BIT, unsigned long, unsigned long long>) * 8;
         // First, check whole "words" for any bit being set.
         UINT NumWordsToCheck = NumBitsToCheck / NumBitsPerWord;
         for (UINT word = 0; word < NumWordsToCheck; ++word)
