@@ -49,6 +49,9 @@
 #include <atomic>
 #include <optional>
 #include <mutex>
+#include <bitset>
+#include <type_traits>
+#include <climits>
 using std::min;
 using std::max;
 
