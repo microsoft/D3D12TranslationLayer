@@ -400,7 +400,7 @@ namespace D3D12TranslationLayer
         {
             // 1 == full pressure, 0 == no pressure
             double Pressure = (double(LocalMemoryState->currentUsage) / double(LocalMemoryState->budget));
-            Pressure = std::min(Pressure, 1.0);
+            Pressure = min(Pressure, 1.0);
 
             if (Pressure > cTrimPercentageMemoryUsageThreshold)
             {
