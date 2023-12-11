@@ -3,6 +3,11 @@
 #include "pch.h"
 #include "SharedResourceHelpers.hpp"
 
+/*
+    SharedResourceLocalHandle is an off-by-one index into the m_OpenResourceMap vector.
+    The resource at index n has a handle value of n+1.
+*/
+
 namespace D3D12TranslationLayer
 {
     SharedResourceLocalHandle TRANSLATION_API SharedResourceHelpers::CreateKMTHandle(_In_ HANDLE resourceHandle)
@@ -25,6 +30,7 @@ namespace D3D12TranslationLayer
     {
         std::lock_guard lock(m_OpenResourceMapLock);
         // Called by C11On12 after a successful resource open
+        handle--;
         assert(m_OpenResourceMap[handle] != nullptr);
         IUnknown* pUnknown = m_OpenResourceMap[handle];
         m_OpenResourceMap[handle] = nullptr;
@@ -38,6 +44,7 @@ namespace D3D12TranslationLayer
         // This method is called by the core layer in cases of failure during OpenSharedResource
         // The KM handle for a shared resource is simply an index into this
         // vector, and "destroying" the KM handle should release the underlying resource.
+        handle--;
         if (m_OpenResourceMap[handle])
         {
             m_OpenResourceMap[handle]->Release();
@@ -57,12 +64,12 @@ namespace D3D12TranslationLayer
             {
                 m_OpenResourceMap[i] = pResource;
                 // It's now safe to detach the smart pointer
-                return i;
+                return i+1;
             }
         }
         m_OpenResourceMap.push_back(pResource); // throw( bad_alloc )
                                                 // It's now safe to detach the smart pointer
-        return i;
+        return i+1;
     }
 
     SharedResourceHelpers::SharedResourceHelpers(ImmediateContext& ImmCtx, CreationFlags const& Flags) noexcept
@@ -87,6 +94,7 @@ namespace D3D12TranslationLayer
     IUnknown* TRANSLATION_API SharedResourceHelpers::QueryResourceFromKMTHandle(SharedResourceLocalHandle handle)
     {
         std::lock_guard lock(m_OpenResourceMapLock);
+        handle--;
         assert(m_OpenResourceMap[handle] != nullptr);
 
         return m_OpenResourceMap[handle];
