@@ -8,6 +8,19 @@ namespace D3D12TranslationLayer
     class ImmediateContext;
     class Resource;
 
+    enum ColorKeyType
+    {
+        COLORKEY_NONE,
+        COLORKEY_SRC,
+        COLORKEY_DEST
+    };
+
+    struct BlitColorKey
+    {
+        float ColorKey[4] = { 0.f,0.f,0.f,0.f };
+        ColorKeyType Type = COLORKEY_NONE;
+    };
+
     union BlitHelperKeyUnion
     {
         struct Bits
@@ -27,12 +40,13 @@ namespace D3D12TranslationLayer
     {
     public:
         BlitHelper(ImmediateContext *pContext);
-        void Blit(Resource *pSrc, UINT *pSrcSubresourceIndices, UINT numSrcSubresources, const RECT& srcRect, Resource *pDst, UINT *pDstSubresourceIndices, UINT numDstSubresources, const RECT& dstRect, bool bEnableAlpha = false, bool bSwapRBChannels = false);
+        void Blit(Resource* pSrc, UINT* pSrcSubresourceIndices, UINT numSrcSubresources, const RECT& srcRect, Resource* pDst, UINT* pDstSubresourceIndices, UINT numDstSubresources, const RECT& dstRect, bool bEnableAlpha = false, bool bSwapRBChannels = false, const BlitColorKey& colorKey = {});
         void Blit(Resource* pSrc, UINT SrcSubresourceIdx, const RECT& srcRect, Resource* pDst, UINT DstSubresourceIdx, const RECT& dstRect, bool bEnableAlpha = false, bool bSwapRBChannels = false);
 
     protected:
         using BlitPipelineState = DeviceChildImpl<ID3D12PipelineState>;
-        BlitPipelineState* PrepareShaders(Resource *pSrc, UINT srcPlanes, Resource *pDst, UINT dstPlanes, bool bEnableAlpha, bool bSwapRB, int &outSrcPixelScalingFactor);
+        void SelectPixelShader(const UINT& srcPlanes, CD3DX12_PIPELINE_STATE_STREAM_PS& outPS, const D3D12_RESOURCE_DESC& srcDesc, bool bSwapRB, ColorKeyType bltColorKeyType);
+        BlitPipelineState* PrepareShaders(Resource *pSrc, UINT srcPlanes, Resource *pDst, UINT dstPlanes, bool bEnableAlpha, bool bSwapRB, const BlitColorKey& colorKey, int &outSrcPixelScalingFactor);
 
         ImmediateContext* const m_pParent;
         std::unordered_map<UINT, std::unique_ptr<BlitPipelineState>> m_spBlitPSOs;

@@ -23,7 +23,80 @@ namespace D3D12TranslationLayer
     {
     }
 
-    auto BlitHelper::PrepareShaders(Resource *pSrc, UINT srcPlanes, Resource *pDst, UINT dstPlanes, bool bEnableAlpha, bool bSwapRB, int& outSrcPixelScalingFactor) -> BlitPipelineState*
+    void BlitHelper::SelectPixelShader(const UINT& srcPlanes, CD3DX12_PIPELINE_STATE_STREAM_PS& outPS, const D3D12_RESOURCE_DESC& srcDesc, bool bSwapRB, ColorKeyType bltColorKeyType)
+    {
+        switch (bltColorKeyType)
+        {
+        case COLORKEY_DEST:
+            assert(false); // not implemented, so assert in debug. Just pretend there is no color key in release though, so intentionally no break;
+        case COLORKEY_NONE:
+            switch (srcPlanes)
+            {
+            case 3:
+                outPS = CD3DX12_SHADER_BYTECODE(g_PS3PlaneYUV, sizeof(g_PS3PlaneYUV)); break;
+            case 2:
+                outPS = CD3DX12_SHADER_BYTECODE(g_PS2PlaneYUV, sizeof(g_PS2PlaneYUV)); break;
+            default:
+                switch (srcDesc.Format)
+                {
+                case DXGI_FORMAT_AYUV:
+                    outPS = CD3DX12_SHADER_BYTECODE(g_PSAYUV, sizeof(g_PSAYUV)); break;
+                case DXGI_FORMAT_Y410:
+                case DXGI_FORMAT_Y416:
+                    outPS = CD3DX12_SHADER_BYTECODE(g_PSY4XX, sizeof(g_PSY4XX)); break;
+                case DXGI_FORMAT_YUY2:
+                case DXGI_FORMAT_Y210:
+                case DXGI_FORMAT_Y216:
+                    outPS = CD3DX12_SHADER_BYTECODE(g_PSPackedYUV, sizeof(g_PSPackedYUV)); break;
+                default:
+                    if (bSwapRB)
+                    {
+                        outPS = CD3DX12_SHADER_BYTECODE(g_PSBasic_SwapRB, sizeof(g_PSBasic_SwapRB));
+                    }
+                    else
+                    {
+                        outPS = CD3DX12_SHADER_BYTECODE(g_PSBasic, sizeof(g_PSBasic));
+                    }
+                }
+                break;
+            }
+            break;
+        case COLORKEY_SRC:
+            switch (srcPlanes)
+            {
+            case 3:
+                outPS = CD3DX12_SHADER_BYTECODE(g_PS3PlaneYUV_ColorKeySrc, sizeof(g_PS3PlaneYUV_ColorKeySrc)); break;
+            case 2:
+                outPS = CD3DX12_SHADER_BYTECODE(g_PS2PlaneYUV_ColorKeySrc, sizeof(g_PS2PlaneYUV_ColorKeySrc)); break;
+            default:
+                switch (srcDesc.Format)
+                {
+                case DXGI_FORMAT_AYUV:
+                    outPS = CD3DX12_SHADER_BYTECODE(g_PSAYUV_ColorKeySrc, sizeof(g_PSAYUV_ColorKeySrc)); break;
+                case DXGI_FORMAT_Y410:
+                case DXGI_FORMAT_Y416:
+                    outPS = CD3DX12_SHADER_BYTECODE(g_PSY4XX_ColorKeySrc, sizeof(g_PSY4XX_ColorKeySrc)); break;
+                case DXGI_FORMAT_YUY2:
+                case DXGI_FORMAT_Y210:
+                case DXGI_FORMAT_Y216:
+                    outPS = CD3DX12_SHADER_BYTECODE(g_PSPackedYUV_ColorKeySrc, sizeof(g_PSPackedYUV_ColorKeySrc)); break;
+                default:
+                    if (bSwapRB)
+                    {
+                        outPS = CD3DX12_SHADER_BYTECODE(g_PSBasic_SwapRB_ColorKeySrc, sizeof(g_PSBasic_SwapRB_ColorKeySrc));
+                    }
+                    else
+                    {
+                        outPS = CD3DX12_SHADER_BYTECODE(g_PSBasic_ColorKeySrc, sizeof(g_PSBasic_ColorKeySrc));
+                    }
+                }
+                break;
+            }
+            break;
+        }
+    }
+
+    auto BlitHelper::PrepareShaders(Resource *pSrc, UINT srcPlanes, Resource *pDst, UINT dstPlanes, bool bEnableAlpha, bool bSwapRB, const BlitColorKey& colorKey, int& outSrcPixelScalingFactor) -> BlitPipelineState*
     {
         const D3D12_RESOURCE_DESC &srcDesc = pSrc->GetUnderlyingResource()->GetDesc();
         const D3D12_RESOURCE_DESC &dstDesc = pDst->GetUnderlyingResource()->GetDesc();
@@ -78,36 +151,7 @@ namespace D3D12TranslationLayer
                 outSrcPixelScalingFactor = 64;
             }
 
-            switch (srcPlanes)
-            {
-            case 3:
-                psoStream.PS = CD3DX12_SHADER_BYTECODE(g_PS3PlaneYUV, sizeof(g_PS3PlaneYUV)); break;
-            case 2:
-                psoStream.PS = CD3DX12_SHADER_BYTECODE(g_PS2PlaneYUV, sizeof(g_PS2PlaneYUV)); break;
-            default:
-                switch (srcDesc.Format)
-                {
-                case DXGI_FORMAT_AYUV:
-                    psoStream.PS = CD3DX12_SHADER_BYTECODE(g_PSAYUV, sizeof(g_PSAYUV)); break;
-                case DXGI_FORMAT_Y410:
-                case DXGI_FORMAT_Y416:
-                    psoStream.PS = CD3DX12_SHADER_BYTECODE(g_PSY4XX, sizeof(g_PSY4XX)); break;
-                case DXGI_FORMAT_YUY2:
-                case DXGI_FORMAT_Y210:
-                case DXGI_FORMAT_Y216:
-                    psoStream.PS = CD3DX12_SHADER_BYTECODE(g_PSPackedYUV, sizeof(g_PSPackedYUV)); break;
-                default:
-                    if (bSwapRB)
-                    {
-                        psoStream.PS = CD3DX12_SHADER_BYTECODE(g_PSBasic_SwapRB, sizeof(g_PSBasic_SwapRB));
-                    }
-                    else
-                    {
-                        psoStream.PS = CD3DX12_SHADER_BYTECODE(g_PSBasic, sizeof(g_PSBasic));
-                    }
-                }
-                break;
-            }
+            SelectPixelShader(srcPlanes, psoStream.PS, srcDesc, bSwapRB, colorKey.Type);
             psoStream.NodeMask = m_pParent->GetNodeMask();
             psoStream.RTVFormats = D3D12_RT_FORMAT_ARRAY{ { dstDesc.Format }, 1 };
             psoStream.Samples = dstDesc.SampleDesc;
@@ -159,7 +203,7 @@ namespace D3D12TranslationLayer
         Blit(pSrc, SrcSubresourceIndices, SrcPlaneCount, SrcRect, pDst, DstSubresourceIndices, DstPlaneCount, DstRect, bEnableAlpha, bSwapRBChannels);
     }
 
-    void BlitHelper::Blit(Resource *pSrc, UINT *pSrcSubresourceIndices, UINT numSrcSubresources, const RECT& srcRect, Resource *pDst, UINT *pDstSubresourceIndices, UINT numDstSubresources, const RECT& dstRect, bool bEnableAlpha, bool bSwapRBChannels)
+    void BlitHelper::Blit(Resource *pSrc, UINT *pSrcSubresourceIndices, UINT numSrcSubresources, const RECT& srcRect, Resource *pDst, UINT *pDstSubresourceIndices, UINT numDstSubresources, const RECT& dstRect, bool bEnableAlpha, bool bSwapRBChannels, const BlitColorKey& bltColorKey)
     {
         const D3D12_RESOURCE_DESC &dstDesc = pDst->GetUnderlyingResource()->GetDesc();
         assert( numSrcSubresources <= MAX_PLANES );
@@ -189,7 +233,7 @@ namespace D3D12TranslationLayer
         }
 
         int srcPixelScalingFactor = 1;
-        BlitPipelineState* pPSO = PrepareShaders(pSrc, numSrcSubresources, pDst, numDstSubresources, bEnableAlpha, bSwapRBChannels, srcPixelScalingFactor /*out argument*/);
+        BlitPipelineState* pPSO = PrepareShaders(pSrc, numSrcSubresources, pDst, numDstSubresources, bEnableAlpha, bSwapRBChannels, bltColorKey, srcPixelScalingFactor /*out argument*/);
 
         m_pParent->PreRender(COMMAND_LIST_TYPE::GRAPHICS);
 
@@ -370,9 +414,11 @@ namespace D3D12TranslationLayer
             pCommandList->SetGraphicsRoot32BitConstants(1, _countof(srcPositions), &srcPositions[0], 0);
         }
 
-        // Constant buffers: srcPixelScalingFactor (For P010/Y410 UNORM pixel scaling to 10 bit range in [0.0f, 1.0f])
+        // Constant buffers: colorKey (for when bltColorKey.type == COLORKEY_SRC), srcPixelScalingFactor (For P010/Y410 UNORM pixel scaling to 10 bit range in [0.0f, 1.0f])
         {
-            pCommandList->SetGraphicsRoot32BitConstants(2, 1, &srcPixelScalingFactor, 0);
+            
+            pCommandList->SetGraphicsRoot32BitConstants(2, 1, bltColorKey.ColorKey, 0);
+            pCommandList->SetGraphicsRoot32BitConstants(2, 1, &srcPixelScalingFactor, 4);
         }
 
         pCommandList->SetPipelineState(pPSO->GetForUse(COMMAND_LIST_TYPE::GRAPHICS));
