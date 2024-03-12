@@ -417,7 +417,7 @@ namespace D3D12TranslationLayer
         // Constant buffers: colorKey (for when bltColorKey.type == COLORKEY_SRC), srcPixelScalingFactor (For P010/Y410 UNORM pixel scaling to 10 bit range in [0.0f, 1.0f])
         {
             
-            pCommandList->SetGraphicsRoot32BitConstants(2, 1, bltColorKey.ColorKey, 0);
+            pCommandList->SetGraphicsRoot32BitConstants(2, 4, bltColorKey.ColorKey, 0);
             pCommandList->SetGraphicsRoot32BitConstants(2, 1, &srcPixelScalingFactor, 4);
         }
 
@@ -439,7 +439,7 @@ namespace D3D12TranslationLayer
                 pDst,
                 pDstSubresourceIndices, numDstSubresources,
                 dstRect,
-                bEnableAlpha, bSwapRBChannels);
+                bEnableAlpha, bSwapRBChannels, bltColorKey);
         }
         else if (needsTempRenderTarget)
         {

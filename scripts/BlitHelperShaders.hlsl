@@ -161,12 +161,12 @@ float4 PS3PlaneYUV(VSOutPSIn input) : SV_TARGET
 //                                              //
 //////////////////////////////////////////////////
 
-#define returnOrDiscard(col)        \
-    float4 color = col;             \
-    if(all(color == g_colorKey))    \
-    {                               \
-        discard;                    \
-    }                               \
+#define returnOrDiscard(col)                \
+    float4 color = col;                     \
+    if(all(color.rgb == g_colorKey.rgb))    \
+    {                                       \
+        discard;                            \
+    }                                       \
     return color;
 
 [RootSignature(RootSig)]
