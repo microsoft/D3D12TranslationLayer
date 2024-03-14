@@ -513,11 +513,21 @@ bool ImmediateContext::TrimDeletedObjects(bool deviceBeingDestroyed)
     return m_DeferredDeletionQueueManager.GetLocked()->TrimDeletedObjects(deviceBeingDestroyed);
 }
 
-bool ImmediateContext::TrimResourcePools()
+bool ImmediateContext::TrimResourcePools(bool aggressive)
 {
-    m_UploadBufferPool.Trim(GetCompletedFenceValue(CommandListType(AllocatorHeapType::Upload)));
-    m_ReadbackBufferPool.Trim(GetCompletedFenceValue(CommandListType(AllocatorHeapType::Readback)));
-    m_DecoderBufferPool.Trim(GetCompletedFenceValue(CommandListType(AllocatorHeapType::Decoder)));
+    if (aggressive)
+    {
+        m_UploadBufferPool.AggressiveTrim(GetCompletedFenceValue(CommandListType(AllocatorHeapType::Upload)));
+        m_ReadbackBufferPool.AggressiveTrim(GetCompletedFenceValue(CommandListType(AllocatorHeapType::Readback)));
+        m_DecoderBufferPool.AggressiveTrim(GetCompletedFenceValue(CommandListType(AllocatorHeapType::Decoder)));
+    }
+    else
+    {
+        m_UploadBufferPool.Trim(GetCompletedFenceValue(CommandListType(AllocatorHeapType::Upload)));
+        m_ReadbackBufferPool.Trim(GetCompletedFenceValue(CommandListType(AllocatorHeapType::Readback)));
+        m_DecoderBufferPool.Trim(GetCompletedFenceValue(CommandListType(AllocatorHeapType::Decoder)));
+    }
+    
 
     return true;
 }
@@ -4095,6 +4105,8 @@ bool ImmediateContext::ResourceAllocationFallback(ResourceAllocationContext thre
     {
         return true;
     }
+
+    TrimResourcePools(true);
 
     UINT64 SyncPoints[2][(UINT)COMMAND_LIST_TYPE::MAX_VALID];
     bool SyncPointExists[2];

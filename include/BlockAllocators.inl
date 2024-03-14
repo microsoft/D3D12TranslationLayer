@@ -183,6 +183,7 @@ void CBuddyAllocator<_BlockType, _SizeType, _MinBlockSize>::Deallocate(_In_ cons
     }
     catch (std::bad_alloc&)
     {
+        assert(false); // assert in debug
         // Deallocate failed trying to add the free block to the pool
         // resulting in a leak.  Unfortunately there is not much we can do.
         // Fortunately this is expected to be extremely rare as the storage

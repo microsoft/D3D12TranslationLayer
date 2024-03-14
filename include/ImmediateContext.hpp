@@ -222,6 +222,17 @@ public:
         }
     }
 
+    void AggressiveTrim(UINT64 CurrentFenceValue)
+    {
+        auto Lock = m_Lock.TakeLock();
+        UINT aggressiveTrimThreshold = 2; // Trim if more than 2 frames old
+
+        for (TPool& pool : m_MultiPool)
+        {
+            pool.Trim(aggressiveTrimThreshold, CurrentFenceValue);
+        }
+    }
+
 protected:
     UINT IndexFromSize(UINT64 Size) noexcept { return (Size == 0) ? 0 : (UINT)((Size - 1) / ResourceSizeMultiple); }
 
@@ -969,7 +980,7 @@ public:
     void AddObjectToDeferredDeletionQueue(ID3D12Object* pUnderlying, const UINT64 lastCommandListIDs[(UINT)COMMAND_LIST_TYPE::MAX_VALID], bool completionRequired);
 
     bool TrimDeletedObjects(bool deviceBeingDestroyed = false);
-    bool TrimResourcePools();
+    bool TrimResourcePools(bool aggressive = false);
 
     unique_comptr<ID3D12Resource> AcquireTransitionableUploadBuffer(AllocatorHeapType HeapType, UINT64 Size) noexcept(false);
 
