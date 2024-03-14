@@ -105,6 +105,7 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
     , m_bUseRingBufferDescriptorHeaps(args.IsXbox)
     , m_BltResolveManager(*this)
     , m_residencyManager(*this)
+    , m_architecture(QueryArchitectureFlags())
 {
     UNREFERENCED_PARAMETER(debugFlags);
     memset(m_BlendFactor, 0, sizeof(m_BlendFactor));
@@ -3368,6 +3369,21 @@ COMMAND_LIST_TYPE ImmediateContext::GetFallbackCommandListType(UINT commandListT
         }
     }
     return COMMAND_LIST_TYPE::GRAPHICS;
+}
+
+ImmediateContext::ArchitectureFlags ImmediateContext::QueryArchitectureFlags()
+{
+    D3D12_FEATURE_DATA_ARCHITECTURE1 data;
+    data.NodeIndex = m_nodeIndex;
+
+    CheckFeatureSupport(D3D12_FEATURE_ARCHITECTURE1, &data, sizeof(data));
+    
+    ArchitectureFlags flags;
+    flags.isTileBasedRenderer = data.TileBasedRenderer;
+    flags.isUMA = data.UMA;
+    flags.iscacheCoherentUMA = data.CacheCoherentUMA;
+    flags.isIsolatedMMU = data.IsolatedMMU;
+    return flags;
 }
 
 
