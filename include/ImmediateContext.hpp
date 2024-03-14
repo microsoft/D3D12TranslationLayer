@@ -1699,6 +1699,24 @@ private:
     } m_SyncronousOpScrachSpace;
 
     const bool m_bUseRingBufferDescriptorHeaps;
+
+public: // cached feature data
+
+    union ArchitectureFlags
+    {
+        UINT Flags = 0;
+        struct
+        {
+            UINT isTileBasedRenderer : 1;
+            UINT isUMA : 1;
+            UINT iscacheCoherentUMA : 1;
+            UINT isIsolatedMMU : 1;
+        };
+    }const m_architecture;
+
+private: // helper methods to initialize feature data
+
+    ArchitectureFlags QueryArchitectureFlags();
 };
 
 DEFINE_ENUM_FLAG_OPERATORS(ImmediateContext::UpdateSubresourcesFlags);
