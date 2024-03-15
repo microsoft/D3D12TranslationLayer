@@ -538,6 +538,8 @@ void TRANSLATION_API ImmediateContext::PostSubmitNotification()
     {
         m_callbacks.m_pfnPostSubmit();
     }
+    // lock the resourceAllocationFallbackMutex so that if we're going oom, resourceAllocationFallback takes this trim operation into account 
+    std::lock_guard<std::mutex> resourceAllocationFallbackLock(m_resourceAllocationFallbackMutex);
     TrimDeletedObjects();
     TrimResourcePools();
 
@@ -4097,6 +4099,26 @@ inline bool IsSyncPointLessThanOrEqual(UINT64(&lhs)[(UINT)COMMAND_LIST_TYPE::MAX
             return false;
     }
     return true;
+}
+bool ImmediateContext::ResourceAllocationFallbackCoordinator(ResourceAllocationContext threadingContext)
+{
+    std::unique_lock<std::mutex> lock(m_resourceAllocationFallbackMutex, std::defer_lock);
+    if (lock.try_lock())
+    {
+        return ResourceAllocationFallback(threadingContext);
+    }
+    else if(threadingContext == ResourceAllocationContext::FreeThread)
+    {
+        // if we're on a worker thread, sleep before trying again
+        Sleep(1);
+        return true;
+    }
+    else
+    {
+        // we're on the main thread, wait on the lock
+        lock.lock();
+        return ResourceAllocationFallback(threadingContext);
+    }
 }
 //----------------------------------------------------------------------------------------------------------------------------------
 bool ImmediateContext::ResourceAllocationFallback(ResourceAllocationContext threadingContext)

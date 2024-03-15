@@ -1289,6 +1289,7 @@ public:
     void TRANSLATION_API GetSharedGDIHandle(_In_ Resource *pResource, _Out_ HANDLE *pHandle);
     void TRANSLATION_API CreateSharedNTHandle(_In_ Resource *pResource, _Out_ HANDLE *pHandle, _In_opt_ SECURITY_ATTRIBUTES *pSA = nullptr);
 
+    bool ResourceAllocationFallbackCoordinator(ResourceAllocationContext threadingContext);
     bool ResourceAllocationFallback(ResourceAllocationContext threadingContext);
 
     template <typename TFunc>
@@ -1605,6 +1606,8 @@ private: // variables
     unique_comptr<Resource> m_pStagingBuffer;
 
 private: // Dynamic/staging resource pools
+    std::mutex m_resourceAllocationFallbackMutex;
+
     const UINT64 m_BufferPoolTrimThreshold = 100;
     TDynamicBufferPool m_UploadBufferPool;
     TDynamicBufferPool m_ReadbackBufferPool;
