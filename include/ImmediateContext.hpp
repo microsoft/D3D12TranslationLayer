@@ -886,6 +886,10 @@ private:
 
     // Must be initialized before BindingTracker logic for m_CurrentState
     D3D_FEATURE_LEVEL m_FeatureLevel;
+
+    static constexpr UINT64 m_MaxBufferPoolTrimThreshold = 100;
+    static constexpr UINT64 m_MinBufferPoolTrimThreshold = 5;
+
 public:
 
     class CDisablePredication
@@ -904,7 +908,11 @@ public:
     class CreationArgs
     {
     public:
-        CreationArgs() { ZeroMemory(this, sizeof(*this)); }
+        CreationArgs() 
+        { 
+            ZeroMemory(this, sizeof(*this)); 
+            BufferPoolTrimThreshold = m_MaxBufferPoolTrimThreshold;
+        }
         
         UINT RequiresBufferOutOfBoundsHandling : 1;
         UINT CreatesAndDestroysAreMultithreaded : 1;
@@ -918,6 +926,7 @@ public:
         GUID CreatorID;
         DWORD MaxAllocatedUploadHeapSpacePerCommandList;
         DWORD MaxSRVHeapSize;
+        DWORD BufferPoolTrimThreshold;
     };
 
     ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTIONS& caps,
@@ -1594,7 +1603,6 @@ private: // variables
     unique_comptr<Resource> m_pStagingBuffer;
 
 private: // Dynamic/staging resource pools
-    const UINT64 m_BufferPoolTrimThreshold = 100;
     TDynamicBufferPool m_UploadBufferPool;
     TDynamicBufferPool m_ReadbackBufferPool;
     TDynamicBufferPool m_DecoderBufferPool;
