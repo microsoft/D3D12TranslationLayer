@@ -182,7 +182,8 @@ HRESULT ResidencyManager::ProcessPagingWork(UINT CommandListIndex, ResidencySet 
 
                 if (AvailableSpace > 0)
                 {
-                    for (UINT32 i = MakeResidentIndex; i < MakeResidentList.size(); i++)
+                    assert(MakeResidentList.size() < MAXUINT32);
+                    for (UINT32 i = MakeResidentIndex; i < static_cast<UINT32>(MakeResidentList.size()); i++)
                     {
                         // If we try to make this object resident, will we go over budget?
                         if (BatchSize + MakeResidentList[i].pManagedObject->Size > UINT64(AvailableSpace))
