@@ -58,7 +58,8 @@ namespace D3D12TranslationLayer
         // The KM handle for a shared resource is simply an index into this
         // vector, to allow the core layer to clean up an 11on12 resource the same way as an 11 resource
         UINT i = 0;
-        for (; i < m_OpenResourceMap.size(); ++i)
+        assert(m_OpenResourceMap.size() < MAXUINT);
+        for (; i < static_cast<UINT>(m_OpenResourceMap.size()); ++i)
         {
             if (m_OpenResourceMap[i] == nullptr)
             {

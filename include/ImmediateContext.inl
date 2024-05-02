@@ -244,7 +244,7 @@ inline bool CViewBoundState<TBindable, NumBindSlots>::IsDirty(TDeclVector const&
     // Note: Even though there are vector resize ops here, they cannot throw,
     // since the backing memory for the vector was already allocated using reserve(NumBindSlots)
     bool bDirty = bKnownDirty;
-    for (UINT i = 0; i < New.size(); ++i)
+    for (size_t i = 0; i < New.size(); ++i)
     {
         if (i >= m_ShaderData.size())
         {
@@ -594,7 +594,7 @@ inline void ImmediateContext::PreDraw() noexcept(false)
     {
         if (pShader)
         {
-            for (UINT i = 0; i < pShader->m_UAVDecls.size(); ++i)
+            for (size_t i = 0; i < pShader->m_UAVDecls.size(); ++i)
             {
                 if (i >= m_UAVDeclScratch.size())
                 {

@@ -45,7 +45,8 @@ namespace D3D12TranslationLayer
     UINT16 ReferenceDataManager::FindRemappedIndex(UINT16 originalIndex)
     {
         // Check if the index is already mapped.
-        for (UINT16 remappedIndex = 0; remappedIndex < referenceDatas.size(); remappedIndex++)
+        assert(referenceDatas.size() < MAXUINT16);
+        for (UINT16 remappedIndex = 0; remappedIndex < static_cast<UINT16>(referenceDatas.size()); remappedIndex++)
         {
             if (referenceDatas[remappedIndex].originalIndex == originalIndex)
             {

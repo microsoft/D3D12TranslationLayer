@@ -159,7 +159,8 @@ namespace D3D12TranslationLayer
             return GetCommandListTypeMask(0);
         }
         UINT TypeMask = 0;
-        for (UINT i = 0; i < m_spExclusiveState.size(); ++i)
+        assert(m_spExclusiveState.size() < MAXUINT);
+        for (UINT i = 0; i < static_cast<UINT>(m_spExclusiveState.size()); ++i)
         {
             TypeMask |= GetCommandListTypeMask(i);
         }

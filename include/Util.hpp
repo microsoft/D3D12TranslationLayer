@@ -424,7 +424,7 @@ namespace D3D12TranslationLayer
             // Leave uninitialized otherwise
             if constexpr (!std::is_trivially_constructible<T>::value)
             {
-                for (UINT i = 0; i < m_Size && i < InlineSize; ++i)
+                for (size_t i = 0; i < m_Size && i < InlineSize; ++i)
                 {
                     new (std::addressof(m_InlineArray[i])) T(std::forward<TConstructionArgs>(constructionArgs)...);
                 }

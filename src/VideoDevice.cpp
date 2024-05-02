@@ -90,7 +90,7 @@ namespace D3D12TranslationLayer
     _Use_decl_annotations_
     void VideoDevice::GetVideoDecoderFormatCount(const GUID *pDecodeProfile, UINT *pFormatCount)
     {
-        for (DWORD i = 0; i < m_decodeProfiles.size(); i++)
+        for (size_t i = 0; i < m_decodeProfiles.size(); i++)
         {
             if (m_decodeProfiles[i].profileGUID == *pDecodeProfile)
             {
@@ -105,7 +105,7 @@ namespace D3D12TranslationLayer
     _Use_decl_annotations_
     void VideoDevice::GetVideoDecoderFormat(const GUID *pDecodeProfile, UINT Index, DXGI_FORMAT *pFormat)
     {
-        for (DWORD i = 0; i < m_decodeProfiles.size(); i++)
+        for (size_t i = 0; i < m_decodeProfiles.size(); i++)
         {
             if (m_decodeProfiles[i].profileGUID == *pDecodeProfile)
             {
@@ -126,11 +126,11 @@ namespace D3D12TranslationLayer
             ThrowFailure(E_POINTER);
         }
         *pSupported = FALSE;
-        for (DWORD i = 0; i < m_decodeProfiles.size(); i++)
+        for (size_t i = 0; i < m_decodeProfiles.size(); i++)
         {
             if (m_decodeProfiles[i].profileGUID == *pDecodeProfile)
             {
-                for (DWORD j = 0; j < m_decodeProfiles[i].formats.size(); j++)
+                for (size_t j = 0; j < m_decodeProfiles[i].formats.size(); j++)
                 {
                     if (format == m_decodeProfiles[i].formats[j] &&
                         CD3D11FormatHelper::GetTypeLevel(format) == D3D11FTL_FULL_TYPE)
@@ -147,7 +147,7 @@ namespace D3D12TranslationLayer
     //----------------------------------------------------------------------------------------------------------------------------------
     bool VideoDevice::IsProfileSupported(REFGUID DecodeProfile) noexcept
     {
-        for (DWORD i = 0; i < m_decodeProfiles.size(); i++)
+        for (size_t i = 0; i < m_decodeProfiles.size(); i++)
         {
             if (m_decodeProfiles[i].profileGUID == DecodeProfile)
             {
@@ -185,7 +185,7 @@ namespace D3D12TranslationLayer
     _Use_decl_annotations_
     void VideoDevice::GetVideoDecoderConfigCount(const VIDEO_DECODE_DESC *pDesc, UINT *pConfigCount)
     {
-        for (DWORD i = 0; i < m_decodeProfiles.size(); i++)
+        for (size_t i = 0; i < m_decodeProfiles.size(); i++)
         {
             if (m_decodeProfiles[i].profileGUID == pDesc->DecodeProfile)
             {
@@ -200,7 +200,7 @@ namespace D3D12TranslationLayer
     _Use_decl_annotations_
     void VideoDevice::GetVideoDecoderConfig(const VIDEO_DECODE_DESC *pDesc, UINT Index, VIDEO_DECODE_CONFIG *pConfig)
     {
-        for (DWORD i = 0; i < m_decodeProfiles.size(); i++)
+        for (size_t i = 0; i < m_decodeProfiles.size(); i++)
         {
             if (m_decodeProfiles[i].profileGUID == pDesc->DecodeProfile)
             {
