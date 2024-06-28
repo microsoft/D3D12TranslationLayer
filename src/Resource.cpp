@@ -48,7 +48,7 @@ namespace D3D12TranslationLayer
         bool& ownsResource = m_Identity->m_bOwnsUnderlyingResource;
         ownsResource = (m_creationArgs.m_heapDesc.Properties.Type == D3D12_HEAP_TYPE_DEFAULT ||
             m_creationArgs.m_heapDesc.Properties.Type == D3D12_HEAP_TYPE_CUSTOM ||
-            OwnsReadbackHeap() ||
+            OwnsReadbackHeap() || IsLockableSharedBuffer() ||
             (AppDesc()->Usage() == RESOURCE_USAGE_DYNAMIC && (Parent()->ResourceDimension12() != D3D12_RESOURCE_DIMENSION_BUFFER)));
 
         // Create/retrieve the resource
