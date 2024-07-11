@@ -43,6 +43,7 @@ HRESULT CDXBCParser::ReadDXBC( const void* pContainer, UINT ContainerSizeInBytes
         return E_FAIL;
     }
     UINT* pIndex = (UINT*)((BYTE*)pHeader + sizeof( DXBCHeader ));
+    //CodeQL [SM03443] Intending to check for pointer overflow along with normal size checks
     if ((const BYTE*)pContainer + sizeof( UINT ) * pHeader->BlobCount < (const BYTE*)pContainer)
     {
         return E_FAIL; // overflow would break the calculation of OffsetOfCurrentSegmentEnd below
