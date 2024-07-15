@@ -234,7 +234,7 @@ HRESULT ResidencyManager::ProcessPagingWork(UINT CommandListIndex, ResidencySet 
                         UINT32 NumObjects = (UINT32)MakeResidentList.size() - ObjectsMadeResident;
 
                         // Gather up the remaining underlying objects
-                        for (UINT32 i = MakeResidentIndex; i < MakeResidentList.size(); i++)
+                        for (size_t i = MakeResidentIndex; i < MakeResidentList.size(); i++)
                         {
                             MakeResidentList[i].pUnderlying = MakeResidentList[i].pManagedObject->pUnderlying;
                         }
