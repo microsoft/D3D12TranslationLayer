@@ -1011,7 +1011,7 @@ namespace D3D12TranslationLayer
     bool Resource::WaitForOutstandingResourcesIfNeeded(bool DoNotWait)
     {
         while (m_Identity &&
-               m_Identity->m_OutstandingResources.size() >= m_Identity->m_MaxOutstandingResources)
+               m_Identity->m_OutstandingResources.size() >= (size_t)m_Identity->m_MaxOutstandingResources)
         {
             auto outstandingResourceUse = m_Identity->m_OutstandingResources.front();
 
