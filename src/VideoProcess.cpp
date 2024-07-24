@@ -204,7 +204,8 @@ namespace D3D12TranslationLayer
                         inputArgs.Transform.SourceRectangle, // SrcRect
                         pOutputArguments->CurrentFrame[dstView].pResource, // pDst
                         pOutputArguments->CurrentFrame[dstView].SubresourceSubset.MinSubresource(), // DstSubresourceIdx
-                        inputArgs.Transform.DestinationRectangle // DstRect
+                        inputArgs.Transform.DestinationRectangle, // DstRect
+                        inputArgs.AlphaBlending.Enable // bEnableAlpha
                     );
                 }
 
