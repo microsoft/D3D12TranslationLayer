@@ -38,7 +38,7 @@ public:
     TResourceType RetrieveFromPool(UINT64 CurrentFenceValue, PFNCreateNew pfnCreateNew, const CreationArgType&... CreationArgs) noexcept(false)
     {
         auto lock = m_pLock ? std::unique_lock(*m_pLock) : std::unique_lock<std::mutex>();
-        TPool::iterator Head = m_Pool.begin();
+        auto Head = m_Pool.begin();
         if (Head == m_Pool.end() || (CurrentFenceValue < Head->first))
         {
             return std::move(pfnCreateNew(CreationArgs...)); // throw( _com_error )
@@ -54,7 +54,7 @@ public:
     {
         auto lock = m_pLock ? std::unique_lock(*m_pLock) : std::unique_lock<std::mutex>();
 
-        TPool::iterator Head = m_Pool.begin();
+        auto Head = m_Pool.begin();
 
         if (Head == m_Pool.end() || (CurrentFenceValue < Head->first))
         {
@@ -112,16 +112,16 @@ public:
     template <typename PFNWaitForFenceValue, typename PFNCreateNew, typename... CreationArgType>
     TResourceType RetrieveFromPool(UINT64 CurrentFenceValue, PFNWaitForFenceValue pfnWaitForFenceValue, PFNCreateNew pfnCreateNew, const CreationArgType&... CreationArgs) noexcept(false)
     {
-        auto lock = m_pLock ? std::unique_lock(*m_pLock) : std::unique_lock<std::mutex>();
-        TPool::iterator Head = m_Pool.begin();
+        auto lock = this->m_pLock ? std::unique_lock(*this->m_pLock) : std::unique_lock<std::mutex>();
+        auto Head = this->m_Pool.begin();
 
-        if (Head == m_Pool.end())
+        if (Head == this->m_Pool.end())
         {
             return std::move(pfnCreateNew(CreationArgs...)); // throw( _com_error )
         }
         else if (CurrentFenceValue < Head->first)
         {
-            if (m_Pool.size() < m_MaxInFlightDepth)
+            if (this->m_Pool.size() < m_MaxInFlightDepth)
             {
                 return std::move(pfnCreateNew(CreationArgs...)); // throw( _com_error )
             }
@@ -133,12 +133,12 @@ public:
 
         assert(Head->second);
         TResourceType ret = std::move(Head->second);
-        m_Pool.erase(Head);
+        this->m_Pool.erase(Head);
         return std::move(ret);
     }
 
     CBoundedFencePool(bool bLock = false, UINT MaxInFlightDepth = UINT_MAX) noexcept
-        : CFencePool(bLock),
+        : CFencePool<TResourceType>(bLock),
         m_MaxInFlightDepth(MaxInFlightDepth)
     {
     }
@@ -149,8 +149,8 @@ public:
     }
     CBoundedFencePool& operator=(CBoundedFencePool&& other) noexcept
     {
-        m_Pool = std::move(other.m_Pool);
-        m_pLock = std::move(other.m_pLock);
+        this->m_Pool = std::move(other.m_Pool);
+        this->m_pLock = std::move(other.m_pLock);
         m_MaxInFlightDepth = other.m_MaxInFlightDepth;
         return *this;
     }

@@ -109,7 +109,7 @@ namespace D3D12TranslationLayer
     {
         assert(createArgs.m_FormatEmulation == FormatEmulation::YV12 || createArgs.m_FormatEmulation == FormatEmulation::None);
         if (   createArgs.m_appDesc.Usage() == RESOURCE_USAGE_STAGING
-            || createArgs.m_appDesc.Usage() == D3D11_USAGE_DYNAMIC)
+            || createArgs.m_appDesc.Usage() == static_cast<int>(D3D11_USAGE_DYNAMIC))
         {
             if (GetSubresourceMultiplier(createArgs) > 1)
             {
@@ -123,7 +123,7 @@ namespace D3D12TranslationLayer
     inline UINT GetSubresourcesForFormatEmulationStagingData(ResourceCreationArgs const& createArgs) noexcept
     {
         return (   (   createArgs.m_appDesc.Usage() == RESOURCE_USAGE_STAGING 
-                    || createArgs.m_appDesc.Usage() == D3D11_USAGE_DYNAMIC)
+                    || createArgs.m_appDesc.Usage() == static_cast<int>(D3D11_USAGE_DYNAMIC))
                 && (   GetSubresourceMultiplier(createArgs) > 1
                     || createArgs.m_FormatEmulation != FormatEmulation::None)) ?
             GetTotalSubresources(createArgs) : 0u;
@@ -138,7 +138,7 @@ namespace D3D12TranslationLayer
 
     inline UINT GetSubresourcesForDynamicTexturePlaneData(ResourceCreationArgs const& createArgs) noexcept
     {
-        return (createArgs.m_appDesc.Usage() == D3D11_USAGE_DYNAMIC) ?
+        return (createArgs.m_appDesc.Usage() == static_cast<int>(D3D11_USAGE_DYNAMIC)) ?
             createArgs.m_appDesc.Subresources() / createArgs.m_appDesc.NonOpaquePlaneCount() : 0u;
     }
 
@@ -154,8 +154,8 @@ namespace D3D12TranslationLayer
         // We should refactor so that the desc doesn't change after construction...
         return ((createArgs.m_desc12.Flags & D3D12_RESOURCE_FLAG_ALLOW_SIMULTANEOUS_ACCESS) != D3D12_RESOURCE_FLAG_NONE ||
                 createArgs.m_desc12.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER) &&
-                (createArgs.m_appDesc.Usage() == D3D11_USAGE_DEFAULT ||
-                 createArgs.m_appDesc.Usage() == D3D11_USAGE_IMMUTABLE);
+                (createArgs.m_appDesc.Usage() == static_cast<int>(D3D11_USAGE_DEFAULT) ||
+                 createArgs.m_appDesc.Usage() == static_cast<int>(D3D11_USAGE_IMMUTABLE));
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
@@ -198,7 +198,7 @@ namespace D3D12TranslationLayer
 
         // Default row-major textures are unsupported by D3D12 (except for cross-adapter), therefore
         // they are emulated using buffers and should typically be handled similarly to staging textures.
-        if (m_effectiveUsage == D3D11_USAGE_DEFAULT &&
+        if (m_effectiveUsage == static_cast<int>(D3D11_USAGE_DEFAULT) &&
             Parent()->ResourceDimension12() != D3D12_RESOURCE_DIMENSION_BUFFER &&
             Parent()->ApiTextureLayout12() == D3D12_TEXTURE_LAYOUT_ROW_MAJOR)
         {

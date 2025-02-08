@@ -756,6 +756,7 @@ void ImmediateContext::RefreshNonHeapBindings(UINT64 DirtyBits) noexcept
         UINT numRTVs = m_CurrentState.m_RTVs.GetNumBound();
         D3D12_CPU_DESCRIPTOR_HANDLE RTVDescriptors[ MaxRTVs ];
         D3D12_CPU_DESCRIPTOR_HANDLE *pDSVDescriptor = nullptr;
+        D3D12_CPU_DESCRIPTOR_HANDLE DSVDescriptor;
         m_CurrentState.m_RTVs.ResetDirty();
 
         for (UINT i = 0; i < numRTVs; ++i)
@@ -771,7 +772,8 @@ void ImmediateContext::RefreshNonHeapBindings(UINT64 DirtyBits) noexcept
         auto pDSV = m_CurrentState.m_DSVs.GetBound()[0];
         if (pDSV)
         {
-            pDSVDescriptor = &pDSV->GetRefreshedDescriptorHandle();
+            DSVDescriptor = pDSV->GetRefreshedDescriptorHandle();
+            pDSVDescriptor = &DSVDescriptor;
         }
 
         GetGraphicsCommandList()->OMSetRenderTargets(numRTVs, RTVDescriptors, false, pDSVDescriptor);
@@ -1420,8 +1422,8 @@ void TRANSLATION_API ImmediateContext::ClearDepthStencilView(DSV *pDSV, UINT Fla
     }
     m_ResourceStateManager.ApplyAllResourceTransitions();
 
-    static_assert(D3D11_CLEAR_DEPTH == D3D12_CLEAR_FLAG_DEPTH, "Casting flags");
-    static_assert(D3D11_CLEAR_STENCIL == D3D12_CLEAR_FLAG_STENCIL, "Casting flags");
+    static_assert(D3D11_CLEAR_DEPTH == static_cast<int>(D3D12_CLEAR_FLAG_DEPTH), "Casting flags");
+    static_assert(D3D11_CLEAR_STENCIL == static_cast<int>(D3D12_CLEAR_FLAG_STENCIL), "Casting flags");
     auto Descriptor = pDSV->GetRefreshedDescriptorHandle();
     GetGraphicsCommandList()->ClearDepthStencilView(Descriptor, static_cast<D3D12_CLEAR_FLAGS>(Flags), Depth, Stencil, NumRects, pRects);
     PostRender(COMMAND_LIST_TYPE::GRAPHICS);
@@ -2473,8 +2475,8 @@ void ImmediateContext::CopyAndConvertSubresourceRegion(Resource* pDst, UINT DstS
             {
                 // This is a buffer to buffer copy
                 // Special-case buffer to buffer copies
-                assert(Descs[0].pResource->AppDesc()->ResourceDimension() == D3D11_RESOURCE_DIMENSION_BUFFER &&
-                       Descs[1].pResource->AppDesc()->ResourceDimension() == D3D11_RESOURCE_DIMENSION_BUFFER);
+                assert(Descs[0].pResource->AppDesc()->ResourceDimension() == static_cast<int>(D3D11_RESOURCE_DIMENSION_BUFFER) &&
+                       Descs[1].pResource->AppDesc()->ResourceDimension() == static_cast<int>(D3D11_RESOURCE_DIMENSION_BUFFER));
 
                 UINT64 SrcOffset = pSrcBox->left + GetDynamicBufferOffset(pSrc);
                 UINT64 Size = pSrcBox->right - pSrcBox->left;
@@ -4980,6 +4982,7 @@ void TRANSLATION_API ImmediateContext::UnmapUnderlyingStaging(Resource* pResourc
 
             if (pResource->GetFormatEmulation() == FormatEmulation::YV12)
             {
+                D3D12_RANGE Range;
                 UINT MipIndex, PlaneIndex, ArrayIndex;
                 pResource->DecomposeSubresource(Subresource, MipIndex, ArrayIndex, PlaneIndex);
 
@@ -5017,10 +5020,12 @@ void TRANSLATION_API ImmediateContext::UnmapUnderlyingStaging(Resource* pResourc
                         }
                     }
 
-                    pResource->GetUnderlyingResource()->Unmap(0, &pResource->GetSubresourceRange(Subresource));
+                    Range = pResource->GetSubresourceRange(Subresource);
+                    pResource->GetUnderlyingResource()->Unmap(0, &Range);
                 }
 
-                pResource->GetUnderlyingResource()->Unmap(0, &pResource->GetSubresourceRange(Subresource));
+                Range = pResource->GetSubresourceRange(Subresource);
+                pResource->GetUnderlyingResource()->Unmap(0, &Range);
             }
             else
             {
@@ -5061,7 +5066,8 @@ void TRANSLATION_API ImmediateContext::UnmapUnderlyingStaging(Resource* pResourc
         else if (pResource->GetFormatEmulation() != FormatEmulation::None)
         {
             assert(pResource->GetFormatEmulation() == FormatEmulation::YV12);
-            pResource->GetUnderlyingResource()->Unmap(0, &CD3DX12_RANGE(0, 0));
+            auto Range = CD3DX12_RANGE(0, 0);
+            pResource->GetUnderlyingResource()->Unmap(0, &Range);
         }
         pResource->m_FormatEmulationStagingData[Subresource].m_MapState = Resource::EmulatedFormatMapState::None;
     }

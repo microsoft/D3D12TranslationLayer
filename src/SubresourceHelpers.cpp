@@ -794,8 +794,8 @@ namespace D3D12TranslationLayer
             if (DSMode != ReadOrWrite)
             {
                 bool bWritable = DSMode == WriteOnly;
-                bool bDepth = !(Desc.Flags & D3D11_DSV_READ_ONLY_DEPTH) == bWritable;
-                bool bStencil = !(Desc.Flags & D3D11_DSV_READ_ONLY_STENCIL) == bWritable;
+                bool bDepth = !(Desc.Flags & static_cast<int>(D3D11_DSV_READ_ONLY_DEPTH)) == bWritable;
+                bool bStencil = !(Desc.Flags & static_cast<int>(D3D11_DSV_READ_ONLY_STENCIL)) == bWritable;
                 m_BeginPlane = (bDepth ? 0 : 1);
                 m_EndPlane = (bStencil ? 2 : 1);
             }

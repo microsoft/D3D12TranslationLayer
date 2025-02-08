@@ -713,7 +713,8 @@ namespace D3D12TranslationLayer
                 pCommandList->RSSetViewports(1, &Viewport);
                 pCommandList->RSSetScissorRects(1, &Scissor);
 
-                pCommandList->OMSetRenderTargets(1, &outputRTV.GetRefreshedDescriptorHandle(), TRUE, nullptr);
+                auto Descriptor = outputRTV.GetRefreshedDescriptorHandle();
+                pCommandList->OMSetRenderTargets(1, &Descriptor, TRUE, nullptr);
                 pCommandList->SetGraphicsRootDescriptorTable(1, SRVBaseGPU);
 
                 pCommandList->DrawInstanced(4, 1, 0, 0);

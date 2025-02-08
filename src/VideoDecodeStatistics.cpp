@@ -153,7 +153,8 @@ namespace D3D12TranslationLayer
         CD3DX12_RANGE ReadRange(0, GetResultOffsetForIndex(m_ResultCount));
         ThrowFailure(m_ResultBuffer.Map(0, &ReadRange, &pMappedData));
 
-        auto Unmap = MakeScopeExit([&]() { m_ResultBuffer.Unmap(0, &CD3DX12_RANGE(0,0)); });
+        auto Range = CD3DX12_RANGE(0, 0);
+        auto Unmap = MakeScopeExit([&]() { m_ResultBuffer.Unmap(0, &Range); });
 
         // Determine the fence ID of the last completed 
         UINT64 lastCompletedFenceID = m_pParent->GetCompletedFenceValue(COMMAND_LIST_TYPE::VIDEO_DECODE);

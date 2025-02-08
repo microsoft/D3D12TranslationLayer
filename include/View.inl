@@ -109,6 +109,13 @@ namespace D3D12TranslationLayer
 
     //----------------------------------------------------------------------------------------------------------------------------------
     template<typename TIface>
+    bool View<TIface>::IsUpToDate() const noexcept
+    {
+        return m_pResource->GetUniqueness<TIface>() == m_ViewUniqueness;
+    }
+
+    //----------------------------------------------------------------------------------------------------------------------------------
+    template<typename TIface>
     HRESULT View<TIface>::RefreshUnderlying() noexcept
     {
         if (m_ViewUniqueness != m_pResource->GetUniqueness<TIface>())
