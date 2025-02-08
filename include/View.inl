@@ -89,7 +89,7 @@ namespace D3D12TranslationLayer
         __if_exists(TDesc12::Buffer)
         {
             typedef decltype(TDesc12::Buffer) TBufferDesc12;
-            if (m_pResource->AppDesc()->ResourceDimension() == D3D11_RESOURCE_DIMENSION_BUFFER)
+            if (m_pResource->AppDesc()->ResourceDimension() == static_cast<int>(D3D11_RESOURCE_DIMENSION_BUFFER))
             {
                 UINT Divisor = GetByteAlignment(m_Desc.Format);
                 __if_exists(TBufferDesc12::StructureByteStride)
