@@ -64,7 +64,7 @@ namespace D3D12TranslationLayer
         template <typename TIface>
         void AddToDeferredDeletionQueue(unique_comptr<TIface>& spObject, COMMAND_LIST_TYPE CommandListType)
         {
-            AddToDeferredDeletionQueue(spObject, CommandListType, m_pParent->GetCommandListID(CommandListType));
+            AddToDeferredDeletionQueue(spObject, CommandListType, GetCommandListID(CommandListType));
         }
 
         void SwapIdentities(DeviceChild& Other)
@@ -78,6 +78,7 @@ namespace D3D12TranslationLayer
         }
 
         void AddToDeferredDeletionQueue(ID3D12Object* pObject);
+        UINT64 GetCommandListID(COMMAND_LIST_TYPE CommandListType) noexcept;
     };
 
     template <typename TIface>
@@ -100,7 +101,7 @@ namespace D3D12TranslationLayer
         }
         TIface* GetForUse(COMMAND_LIST_TYPE CommandListType)
         {
-            return GetForUse(CommandListType, m_pParent->GetCommandListID(CommandListType));
+            return GetForUse(CommandListType, GetCommandListID(CommandListType));
         }
         TIface* GetForImmediateUse() { return m_spIface.get(); }
 

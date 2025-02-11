@@ -278,7 +278,7 @@ inline bool CViewBoundState<TBindable, NumBindSlots>::IsDirty(TDeclVector const&
 
     if (!bDirty)
     {
-        bDirty = DirtyBitsUpTo(static_cast<UINT>(rootSignatureBucketSize));
+        bDirty = this->DirtyBitsUpTo(static_cast<UINT>(rootSignatureBucketSize));
     }
 
     return bDirty;
@@ -954,6 +954,23 @@ inline void GetBufferViewDesc(Resource* pBuffer, TDesc& Desc, UINT APIOffset, UI
     }
 }
 
+//----------------------------------------------------------------------------------------------------------------------------------
+template<EShaderStage eShader> struct DescriptorBindFuncs
+{
+    static decltype(&ID3D12GraphicsCommandList::SetGraphicsRootDescriptorTable) GetBindFunc()
+    {
+        return &ID3D12GraphicsCommandList::SetGraphicsRootDescriptorTable;
+    }
+};
+template<> struct DescriptorBindFuncs<e_CS>
+{
+    static decltype(&ID3D12GraphicsCommandList::SetComputeRootDescriptorTable) GetBindFunc()
+    {
+        return &ID3D12GraphicsCommandList::SetComputeRootDescriptorTable;
+    }
+};
+
+//----------------------------------------------------------------------------------------------------------------------------------
 template<EShaderStage eShader> struct SRVBindIndices;
 template<> struct SRVBindIndices<e_PS> { static const UINT c_TableIndex = 1; };
 template<> struct SRVBindIndices<e_VS> { static const UINT c_TableIndex = 4; };
@@ -1024,22 +1041,6 @@ inline void ImmediateContext::ApplySamplersHelper() noexcept
         SamplerBindIndices<eShader>::c_TableIndex,
         CurrentState.m_SamplerTableBase);
 }
-
-//----------------------------------------------------------------------------------------------------------------------------------
-template<EShaderStage eShader> struct DescriptorBindFuncs
-{
-    static decltype(&ID3D12GraphicsCommandList::SetGraphicsRootDescriptorTable) GetBindFunc()
-    {
-        return &ID3D12GraphicsCommandList::SetGraphicsRootDescriptorTable;
-    }
-};
-template<> struct DescriptorBindFuncs<e_CS>
-{
-    static decltype(&ID3D12GraphicsCommandList::SetComputeRootDescriptorTable) GetBindFunc()
-    {
-        return &ID3D12GraphicsCommandList::SetComputeRootDescriptorTable;
-    }
-};
 
 //----------------------------------------------------------------------------------------------------------------------------------
 inline void TRANSLATION_API ImmediateContext::Dispatch(UINT x, UINT y, UINT z)

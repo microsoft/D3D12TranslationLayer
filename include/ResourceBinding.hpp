@@ -250,7 +250,7 @@ namespace D3D12TranslationLayer
         CViewBoundState() noexcept(false)
             : CBoundState<TBindable, NumBindSlots>()
         {
-            m_ShaderData.reserve(NumBindings); // throw( bad_alloc )
+            m_ShaderData.reserve(this->NumBindings); // throw( bad_alloc )
         }
 
         bool UpdateBinding(_In_range_(0, NumBindings - 1) UINT slot, _In_opt_ TBindable* pBindable, EShaderStage stage) noexcept;

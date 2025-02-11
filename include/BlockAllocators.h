@@ -69,7 +69,7 @@ template<class _BlockType, class _SizeType = SIZE_T>
 class CNullBlockAllocator
 {
 public:
-    _BlockType Allocate(_SizeType size) { return _BlockType; /* Returns a default block*/ }
+    _BlockType Allocate(_SizeType size) { return {}; /* Returns a default block*/ }
     void Deallocate(_BlockType &block) { assert(block.GetSize() == 0); }
     bool IsOwner(_BlockType &block) const { return block.GetSize() == 0 && block.GetOffset() == 0; }
     void Reset() {}
@@ -105,7 +105,7 @@ public:
     // Required Allocator functions
     _BlockType Allocate(_SizeType size);
     void Deallocate(const _BlockType &block);
-    bool IsOwner(const _BlockType &block) const { return block.GetSize() == blockSize; }
+    bool IsOwner(const _BlockType &block) const { return block.GetSize() == m_blockSize; }
     void Reset();
 };
 
