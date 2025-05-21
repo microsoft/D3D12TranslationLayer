@@ -451,7 +451,14 @@ namespace D3D12TranslationLayer
         }
 #endif
 
-        return m_Fence.SetEventOnCompletion(FenceValue, hEvent);
+        if (m_Fence.GetCompletedValue() >= FenceValue)
+        {
+            return SetEvent(hEvent) ? S_OK : E_FAIL;
+        }
+        else
+        {
+            return m_Fence.SetEventOnCompletion(FenceValue, hEvent);
+        }
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
