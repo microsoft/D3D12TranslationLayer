@@ -99,6 +99,7 @@ namespace D3D12TranslationLayer
         UINT64 Size = 0;
 
         UINT64 LastUsedFenceValues[(UINT)COMMAND_LIST_TYPE::MAX_VALID] = {};
+        UINT64 LastUsedPeriodicTrimNotificationIndex = 0;
         UINT64 LastUsedTimestamp = 0;
 
         // This is used to track which open command lists this resource is currently used on.
@@ -291,6 +292,9 @@ namespace D3D12TranslationLayer
             // Trim all objects which are older than the specified time
             void TrimAgedAllocations(UINT64 FenceValues[], std::vector<ID3D12Pageable*> &EvictionList, UINT64 CurrentTimeStamp, UINT64 MinDelta);
 
+            // Trim all objects which haven't been used in the last periodic trim callback period
+            void TrimUnusedAllocationsSinceLastNotificationPeriod(UINT64 CurrentPeriodicTrimNotificationIndex, UINT64 FenceValues[], std::vector<ID3D12Pageable*>& EvictionList, UINT64& BytesToEvict);
+
             ManagedObject* GetResidentListHead()
             {
                 if (IsListEmpty(&ResidentObjectListHead))
@@ -317,8 +321,19 @@ namespace D3D12TranslationLayer
         {
         }
 
+        ~ResidencyManager();
+
         // NOTE: DeviceNodeIndex is an index not a mask. The majority of D3D12 uses bit masks to identify a GPU node whereas DXGI uses 0 based indices.
         HRESULT Initialize(UINT DeviceNodeIndex, IDXCoreAdapter* ParentAdapterDXCore, IDXGIAdapter3* ParentAdapterDXGI);
+
+        // Incremented each trim notification callback invocation
+        // Start at 1 so that resources used in the first period are not immediately evicted
+        const UINT64 PeriodicTrimNotificationIndexInitialValue = 1;
+        UINT64 PeriodicTrimNotificationIndex = PeriodicTrimNotificationIndexInitialValue;
+        // Cookie returned at trim notification callback registration. UINT32_MAX indicates no callback registered.
+        const DWORD c_PeriodicTrimCallbackCookie_Unregistered = UINT32_MAX;
+        DWORD PeriodicTrimCallbackCookie = c_PeriodicTrimCallbackCookie_Unregistered;
+        static void APIENTRY PeriodicTrimNotificationCallback(const D3D12_TRIM_NOTIFICATION* pData);
 
         void BeginTrackingObject(ManagedObject* pObject)
         {
@@ -421,13 +436,14 @@ namespace D3D12TranslationLayer
         Internal::Fence AsyncThreadFence;
 
         CComPtr<ID3D12Device3> Device;
+        CComPtr<ID3D12Device15> Device15;
         // NOTE: This is an index not a mask. The majority of D3D12 uses bit masks to identify a GPU node whereas DXGI uses 0 based indices.
         UINT NodeIndex = 0;
         IDXCoreAdapter* AdapterDXCore = nullptr;
         IDXGIAdapter3* AdapterDXGI = nullptr;
         Internal::LRUCache LRU;
 
-        std::mutex Mutex;
+        std::recursive_mutex Mutex;
 
         static constexpr float cMinEvictionGracePeriod = 1.0f;
         UINT64 MinEvictionGracePeriodTicks;
