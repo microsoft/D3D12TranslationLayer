@@ -28,7 +28,7 @@ namespace D3D12TranslationLayer
     } VIDEO_DECODE_PROFILE_BIT_DEPTH_INDEX;
 
     typedef enum {
-        VIDEO_DECODE_PROFILE_BIT_DEPTH_NONE = 0, 
+        VIDEO_DECODE_PROFILE_BIT_DEPTH_NONE = 0,
         VIDEO_DECODE_PROFILE_BIT_DEPTH_8_BIT = (1 << VIDEO_DECODE_PROFILE_BIT_DEPTH_INDEX_8_BIT),
         VIDEO_DECODE_PROFILE_BIT_DEPTH_10_BIT = (1 << VIDEO_DECODE_PROFILE_BIT_DEPTH_INDEX_10_BIT),
         VIDEO_DECODE_PROFILE_BIT_DEPTH_16_BIT = (1 << VIDEO_DECODE_PROFILE_BIT_DEPTH_INDEX_16_BIT),
@@ -83,7 +83,7 @@ namespace D3D12TranslationLayer
         _Field_size_(IVSize) const void* pIV;
         UINT IVSize;
         _Field_size_opt_(SubSampleMappingCount) const void*pSubSampleMappingBlock;
-        UINT SubSampleMappingCount; 
+        UINT SubSampleMappingCount;
         UINT cBlocksStripeEncrypted;
         UINT cBlocksStripeClear;
     } VIDEO_DECODE_DECRYPTION_ARGUMENTS;
@@ -110,7 +110,7 @@ namespace D3D12TranslationLayer
         CViewSubresourceSubset SubresourceSubset;
         VIDEO_DECODE_OUTPUT_CONVERSION_ARGUMENTS ConversionArguments;
         VIDEO_DECODE_COMPONENT_HISTOGRAM Histograms[VIDEO_DECODE_MAX_HISTOGRAM_COMPONENTS];
-        
+
     } VIDEO_DECODE_OUTPUT_STREAM_ARGUMENTS;
 
     class VideoDecode : public DeviceChild
@@ -130,11 +130,12 @@ namespace D3D12TranslationLayer
 
         bool IsArrayOfTexturesEnabled() const { return (m_ConfigDecoderSpecific & VIDEO_DECODE_CONFIG_SPECIFIC_ARRAY_OF_TEXTURES) == VIDEO_DECODE_CONFIG_SPECIFIC_ARRAY_OF_TEXTURES; }
 
+        static VIDEO_DECODE_PROFILE_TYPE GetProfileType(_In_ REFGUID DecodeProfile) noexcept;
+
     protected:
 
         void ManageResolutionChange(_In_ const VIDEO_DECODE_OUTPUT_STREAM_ARGUMENTS *pOutputArguments);
         HRESULT GetDecodeFrameInfo(_Out_ UINT *pWidth, _Out_ UINT *pHeight, _Out_ UINT16 *pMaxDPB) noexcept;
-        static VIDEO_DECODE_PROFILE_TYPE GetProfileType(_In_ REFGUID DecodeProfile) noexcept;
         static VIDEO_DECODE_PROFILE_BIT_DEPTH GetProfileBitDepth(_In_ REFGUID DecodeProfile) noexcept;
         static VIDEO_DECODE_PROFILE_BIT_DEPTH GetFormatBitDepth(DXGI_FORMAT Format) noexcept;
         GUID GetDecodeProfile(VIDEO_DECODE_PROFILE_TYPE ProfileType, VIDEO_DECODE_PROFILE_BIT_DEPTH BitDepth) noexcept;
