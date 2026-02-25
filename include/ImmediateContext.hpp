@@ -992,7 +992,7 @@ public:
     void ReturnAllBuffersToPool( Resource& UnderlyingResource) noexcept;
    
 
-    static void UploadDataToMappedBuffer(_In_reads_bytes_(Placement.Depth * DepthPitch) const void* pData, UINT SrcPitch, UINT SrcDepth, 
+    void UploadDataToMappedBuffer(_In_reads_bytes_(Placement.Depth * DepthPitch) const void* pData, UINT SrcPitch, UINT SrcDepth, 
                                          _Out_writes_bytes_(Placement.Depth * DepthPitch) void* pMappedData,
                                          D3D12_SUBRESOURCE_FOOTPRINT& Placement, UINT DepthPitch, UINT TightRowPitch) noexcept;
 
@@ -1721,6 +1721,8 @@ public: // cached feature data
             UINT isIsolatedMMU : 1;
         };
     }const m_architecture;
+
+    const bool m_supportsUnrestrictedBufferTextureCopyPitch;
 
 private: // helper methods to initialize feature data
 

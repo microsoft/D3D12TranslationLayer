@@ -106,6 +106,14 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
     , m_BltResolveManager(*this)
     , m_residencyManager(*this)
     , m_architecture(QueryArchitectureFlags())
+    , m_supportsUnrestrictedBufferTextureCopyPitch([pDevice]() {
+        D3D12_FEATURE_DATA_D3D12_OPTIONS13 d3d12Options13 = {};
+        if (SUCCEEDED(pDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS13, &d3d12Options13, sizeof(d3d12Options13))))
+        {
+            return d3d12Options13.UnrestrictedBufferTextureCopyPitchSupported != FALSE;
+        }
+        return false;
+    }())
 {
     UNREFERENCED_PARAMETER(debugFlags);
     memset(m_BlendFactor, 0, sizeof(m_BlendFactor));
@@ -2728,9 +2736,10 @@ void ImmediateContext::UploadDataToMappedBuffer(_In_reads_bytes_(Placement.Depth
     ASSUME(NumRows <= Placement.Height);
     ASSUME(Placement.RowPitch * NumRows <= DepthPitch);
 
-    // Fast-path: app gave us aligned memory
-    if ((Placement.RowPitch == SrcPitch || Placement.Height == 1) &&
-        (DepthPitch == SrcDepth || Placement.Depth == 1))
+    // Fast-path: app gave us aligned memory, or device supports unrestricted pitch
+    if (m_supportsUnrestrictedBufferTextureCopyPitch ||
+        ((Placement.RowPitch == SrcPitch || Placement.Height == 1) &&
+         (DepthPitch == SrcDepth || Placement.Depth == 1)))
     {
         // Allow last row to be non-padded
         UINT CopySize = DepthPitch * (Placement.Depth - 1) +
@@ -3202,7 +3211,7 @@ void ImmediateContext::CPrepareUpdateSubresourcesHelper::UploadSourceDataToMappa
                     DstSlicePitch = Dst.DepthPitch(Subresource);
                 }
 
-                ImmediateContext::UploadDataToMappedBuffer(pSrcPlaneData, SrcData.SysMemPitch, SrcSlicePitch,
+                ImmCtx.UploadDataToMappedBuffer(pSrcPlaneData, SrcData.SysMemPitch, SrcSlicePitch,
                                                             pDstSubresourceData, Placement.Footprint,
                                                             DstSlicePitch, TightRowPitch);
 
@@ -3385,6 +3394,7 @@ ImmediateContext::ArchitectureFlags ImmediateContext::QueryArchitectureFlags()
     flags.isUMA = data.UMA;
     flags.iscacheCoherentUMA = data.CacheCoherentUMA;
     flags.isIsolatedMMU = data.IsolatedMMU;
+    
     return flags;
 }
 
