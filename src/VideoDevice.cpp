@@ -28,13 +28,22 @@ namespace D3D12TranslationLayer
         profiles.pProfiles = spGUIDs.get();
         CheckFeatureSupport(D3D12_FEATURE_VIDEO_DECODE_PROFILES, &profiles, sizeof(profiles));
 
-        // fill formats for each profile
+        // fill formats for each profile, filtering out profiles not supported by the translation layer
+        UINT filteredCount = 0;
         for (UINT i = 0; i < decodeProfileData.ProfileCount; i++)
         {
-            m_decodeProfiles[i].profileGUID = spGUIDs[i];
+            // Only expose profiles that the translation layer knows how to decode.
+            // D3D12 may report profiles (e.g. AV1) that we don't have codec-specific
+            // handling for in VideoDecode, which would cause failures at decode time.
+            if (VideoDecode::GetProfileType(spGUIDs[i]) == VIDEO_DECODE_PROFILE_TYPE_NONE)
+            {
+                continue;
+            }
+
+            m_decodeProfiles[filteredCount].profileGUID = spGUIDs[i];
 
             D3D12_VIDEO_DECODE_CONFIGURATION decodeConfig = {
-                m_decodeProfiles[i].profileGUID,
+                m_decodeProfiles[filteredCount].profileGUID,
                 D3D12_BITSTREAM_ENCRYPTION_TYPE_NONE,
                 D3D12_VIDEO_FRAME_CODED_INTERLACE_TYPE_NONE
             };
@@ -50,10 +59,13 @@ namespace D3D12TranslationLayer
             formats.NodeIndex = m_pParent->GetNodeIndex();
             formats.Configuration = decodeConfig;
             formats.FormatCount = decodeProfileFormatData.FormatCount;
-            m_decodeProfiles[i].formats.resize(formats.FormatCount);    //throw( bad_alloc ))
-            formats.pOutputFormats = m_decodeProfiles[i].formats.data();
+            m_decodeProfiles[filteredCount].formats.resize(formats.FormatCount);    //throw( bad_alloc ))
+            formats.pOutputFormats = m_decodeProfiles[filteredCount].formats.data();
             CheckFeatureSupport(D3D12_FEATURE_VIDEO_DECODE_FORMATS, &formats, sizeof(formats));
+
+            filteredCount++;
         }
+        m_decodeProfiles.resize(filteredCount);
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
