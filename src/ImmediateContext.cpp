@@ -2970,7 +2970,7 @@ ImmediateContext::CPrepareUpdateSubresourcesHelper::CPrepareUpdateSubresourcesHe
 #if DBG
     AssertPreconditions(pSrcData, pClearPattern);
 #endif
-    bool bEmptyBox = InitializePlacementsAndCalculateSize(pDstBox, ImmCtx.m_pDevice12.get());
+    bool bEmptyBox = InitializePlacementsAndCalculateSize(pDstBox, ImmCtx);
     if (bEmptyBox)
     {
         return;
@@ -3006,7 +3006,7 @@ void ImmediateContext::CPrepareUpdateSubresourcesHelper::AssertPreconditions(con
 #endif
 
 //----------------------------------------------------------------------------------------------------------------------------------
-bool ImmediateContext::CPrepareUpdateSubresourcesHelper::InitializePlacementsAndCalculateSize(const D3D12_BOX* pDstBox, ID3D12Device* pDevice)
+bool ImmediateContext::CPrepareUpdateSubresourcesHelper::InitializePlacementsAndCalculateSize(const D3D12_BOX* pDstBox, ImmediateContext& ImmCtx)
 {
     auto& LocalPlacementDescs = PreparedStorage.LocalPlacementDescs;
 
@@ -3030,7 +3030,8 @@ bool ImmediateContext::CPrepareUpdateSubresourcesHelper::InitializePlacementsAnd
                 }
 
                 // Note: D3D11 provides a subsampled box, so for planar formats, we need to use the plane format to avoid subsampling again
-                Resource::FillSubresourceDesc(pDevice,
+                Resource::FillSubresourceDesc(ImmCtx.m_pDevice12.get(),
+                                                ImmCtx.GetOptions13().UnrestrictedBufferTextureCopyPitchSupported,
                                                 Dst.GetSubresourcePlacement(Subresource).Footprint.Format,
                                                 pDstBox->right - pDstBox->left,
                                                 pDstBox->bottom - pDstBox->top,

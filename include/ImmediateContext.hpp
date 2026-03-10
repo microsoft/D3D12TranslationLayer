@@ -1076,7 +1076,7 @@ public:
         void AssertPreconditions(const D3D11_SUBRESOURCE_DATA* pSrcData, const void* pClearPattern);
 #endif
 
-        bool InitializePlacementsAndCalculateSize(const D3D12_BOX* pDstBox, ID3D12Device* pDevice);
+        bool InitializePlacementsAndCalculateSize(const D3D12_BOX* pDstBox, ImmediateContext& ImmCtx);
         bool NeedToRespectPredication(UpdateSubresourcesFlags flags) const;
         bool NeedTemporaryUploadHeap(UpdateSubresourcesFlags flags, ImmediateContext& ImmCtx) const;
         void InitializeMappableResource(UpdateSubresourcesFlags flags, ImmediateContext& ImmCtx, D3D12_BOX const* pDstBox);

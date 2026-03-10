@@ -705,6 +705,26 @@ namespace D3D12TranslationLayer
         ID3D12Device* pDevice = m_pParent->m_pDevice12.get();
 
         pDevice->GetCopyableFootprints(&ResDesc, 0, NumSubresources(), 0, &m_SubresourcePlacement[0], nullptr, nullptr, nullptr);
+
+        // If unrestricted pitch is supported, we can use tighter packing for non-planar resources
+        // instead of the default 256-byte alignment that GetCopyableFootprints applies
+        if (m_pParent->GetOptions13().UnrestrictedBufferTextureCopyPitchSupported && AppDesc()->NonOpaquePlaneCount() == 1)
+        {
+            UINT64 m_totalSize = 0;
+            for (UINT subresourceIndex = 0; subresourceIndex < NumSubresources(); subresourceIndex++)
+            {
+                auto& footprint = m_SubresourcePlacement[subresourceIndex];
+
+                UINT minPitch = 0;
+                CD3D11FormatHelper::CalculateMinimumRowMajorRowPitch(footprint.Footprint.Format, footprint.Footprint.Width, minPitch);
+                footprint.Footprint.RowPitch = minPitch;
+                footprint.Offset = m_totalSize;
+
+                UINT slicePitch = 0;
+                CD3D11FormatHelper::CalculateMinimumRowMajorSlicePitch(footprint.Footprint.Format, footprint.Footprint.RowPitch, footprint.Footprint.Height, slicePitch);
+                m_totalSize += slicePitch * footprint.Footprint.Depth;
+            }
+        }
         
         if (m_SubresourcePlacement[0].Footprint.RowPitch == -1)
         {
@@ -741,7 +761,7 @@ namespace D3D12TranslationLayer
                 }
             }
         }
-        else
+        else if(!m_pParent->GetOptions13().UnrestrictedBufferTextureCopyPitchSupported || AppDesc()->ResourceDimension() == D3D12_RESOURCE_DIMENSION_BUFFER)
         {
             // D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT is used to ensure that constant buffers are multiples of 256 bytes in size
             m_SubresourcePlacement[0].Footprint.RowPitch =
@@ -749,7 +769,7 @@ namespace D3D12TranslationLayer
         }
     }
 
-    void Resource::FillSubresourceDesc(ID3D12Device* pDevice, DXGI_FORMAT Format, UINT PlaneWidth, UINT PlaneHeight, UINT Depth, _Out_ D3D12_PLACED_SUBRESOURCE_FOOTPRINT& Placement) noexcept
+    void Resource::FillSubresourceDesc(ID3D12Device* pDevice, bool supportsUnrestrictedBufferTextureCopyPitch, DXGI_FORMAT Format, UINT PlaneWidth, UINT PlaneHeight, UINT Depth, _Out_ D3D12_PLACED_SUBRESOURCE_FOOTPRINT& Placement) noexcept
     {
         CD3DX12_RESOURCE_DESC ResourceDesc(
             D3D12_RESOURCE_DIMENSION_TEXTURE2D,
@@ -774,7 +794,10 @@ namespace D3D12TranslationLayer
         pDevice->GetCopyableFootprints(&ResourceDesc, 0, 1, 0, &Placement, nullptr, nullptr, nullptr);
 
         // D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT is used to ensure that constant buffers are multiples of 256 bytes in size
-        Placement.Footprint.RowPitch = Align<UINT>(Placement.Footprint.RowPitch, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+        if (!supportsUnrestrictedBufferTextureCopyPitch || ResourceDesc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER)
+        {
+            Placement.Footprint.RowPitch = Align<UINT>(Placement.Footprint.RowPitch, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+        }
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
