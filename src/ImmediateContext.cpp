@@ -187,6 +187,10 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
     m_SamplerHeap.m_Desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     m_SamplerHeap.m_Desc.NodeMask = GetNodeMask();
 
+    //Fetch additional caps
+    m_options13 = {};
+    pDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS13, &m_options13, sizeof(m_options13));
+
     // Create initial objects
     hr = m_pDevice12->CreateDescriptorHeap(&m_ViewHeap.m_Desc, IID_PPV_ARGS(&m_ViewHeap.m_pDescriptorHeap));
     ThrowFailure(hr); //throw( _com_error )

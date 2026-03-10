@@ -1722,9 +1722,12 @@ public: // cached feature data
         };
     }const m_architecture;
 
+	const D3D12_FEATURE_DATA_D3D12_OPTIONS13& GetOptions13() const { return m_options13; }
+
 private: // helper methods to initialize feature data
 
     ArchitectureFlags QueryArchitectureFlags();
+    D3D12_FEATURE_DATA_D3D12_OPTIONS13 m_options13;
 };
 
 DEFINE_ENUM_FLAG_OPERATORS(ImmediateContext::UpdateSubresourcesFlags);
