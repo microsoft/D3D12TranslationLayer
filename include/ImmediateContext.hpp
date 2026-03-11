@@ -1076,7 +1076,7 @@ public:
         void AssertPreconditions(const D3D11_SUBRESOURCE_DATA* pSrcData, const void* pClearPattern);
 #endif
 
-        bool InitializePlacementsAndCalculateSize(const D3D12_BOX* pDstBox, ID3D12Device* pDevice);
+        bool InitializePlacementsAndCalculateSize(const D3D12_BOX* pDstBox, ImmediateContext& ImmCtx);
         bool NeedToRespectPredication(UpdateSubresourcesFlags flags) const;
         bool NeedTemporaryUploadHeap(UpdateSubresourcesFlags flags, ImmediateContext& ImmCtx) const;
         void InitializeMappableResource(UpdateSubresourcesFlags flags, ImmediateContext& ImmCtx, D3D12_BOX const* pDstBox);
@@ -1722,9 +1722,12 @@ public: // cached feature data
         };
     }const m_architecture;
 
+	const D3D12_FEATURE_DATA_D3D12_OPTIONS13& GetOptions13() const { return m_options13; }
+
 private: // helper methods to initialize feature data
 
     ArchitectureFlags QueryArchitectureFlags();
+    D3D12_FEATURE_DATA_D3D12_OPTIONS13 m_options13;
 };
 
 DEFINE_ENUM_FLAG_OPERATORS(ImmediateContext::UpdateSubresourcesFlags);
