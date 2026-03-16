@@ -444,7 +444,7 @@ namespace D3D12TranslationLayer
         UINT64 GetResourceSize() noexcept;
         static D3D12_HEAP_TYPE GetD3D12HeapType(RESOURCE_USAGE usage, UINT cpuAccessFlags) noexcept;
 
-        static void FillSubresourceDesc(ID3D12Device* pDevice, DXGI_FORMAT, UINT Width, UINT Height, UINT Depth, _Out_ D3D12_PLACED_SUBRESOURCE_FOOTPRINT& Placement) noexcept;
+        static void FillSubresourceDesc(ID3D12Device* pDevice, bool supportsUnrestrictedBufferTextureCopyPitch, DXGI_FORMAT, UINT Width, UINT Height, UINT Depth, _Out_ D3D12_PLACED_SUBRESOURCE_FOOTPRINT& Placement) noexcept;
         UINT DepthPitch(UINT Subresource) noexcept;
 
         template<typename TViewIface> UINT GetUniqueness() const noexcept { return m_AllUniqueness; }

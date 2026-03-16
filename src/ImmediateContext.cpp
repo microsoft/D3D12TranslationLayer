@@ -187,6 +187,10 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
     m_SamplerHeap.m_Desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     m_SamplerHeap.m_Desc.NodeMask = GetNodeMask();
 
+    //Fetch additional caps
+    m_options13 = {};
+    pDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS13, &m_options13, sizeof(m_options13));
+
     // Create initial objects
     hr = m_pDevice12->CreateDescriptorHeap(&m_ViewHeap.m_Desc, IID_PPV_ARGS(&m_ViewHeap.m_pDescriptorHeap));
     ThrowFailure(hr); //throw( _com_error )
@@ -2966,7 +2970,7 @@ ImmediateContext::CPrepareUpdateSubresourcesHelper::CPrepareUpdateSubresourcesHe
 #if DBG
     AssertPreconditions(pSrcData, pClearPattern);
 #endif
-    bool bEmptyBox = InitializePlacementsAndCalculateSize(pDstBox, ImmCtx.m_pDevice12.get());
+    bool bEmptyBox = InitializePlacementsAndCalculateSize(pDstBox, ImmCtx);
     if (bEmptyBox)
     {
         return;
@@ -3002,7 +3006,7 @@ void ImmediateContext::CPrepareUpdateSubresourcesHelper::AssertPreconditions(con
 #endif
 
 //----------------------------------------------------------------------------------------------------------------------------------
-bool ImmediateContext::CPrepareUpdateSubresourcesHelper::InitializePlacementsAndCalculateSize(const D3D12_BOX* pDstBox, ID3D12Device* pDevice)
+bool ImmediateContext::CPrepareUpdateSubresourcesHelper::InitializePlacementsAndCalculateSize(const D3D12_BOX* pDstBox, ImmediateContext& ImmCtx)
 {
     auto& LocalPlacementDescs = PreparedStorage.LocalPlacementDescs;
 
@@ -3026,7 +3030,8 @@ bool ImmediateContext::CPrepareUpdateSubresourcesHelper::InitializePlacementsAnd
                 }
 
                 // Note: D3D11 provides a subsampled box, so for planar formats, we need to use the plane format to avoid subsampling again
-                Resource::FillSubresourceDesc(pDevice,
+                Resource::FillSubresourceDesc(ImmCtx.m_pDevice12.get(),
+                                                ImmCtx.GetOptions13().UnrestrictedBufferTextureCopyPitchSupported,
                                                 Dst.GetSubresourcePlacement(Subresource).Footprint.Format,
                                                 pDstBox->right - pDstBox->left,
                                                 pDstBox->bottom - pDstBox->top,
