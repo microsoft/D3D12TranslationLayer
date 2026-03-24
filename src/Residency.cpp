@@ -8,11 +8,11 @@ namespace D3D12TranslationLayer
 
 void Internal::LRUCache::TrimToSyncPointInclusive(INT64 CurrentUsage, INT64 CurrentBudget, std::vector<ID3D12Pageable*> &EvictionList, UINT64 FenceValues[])
 {
-    EvictionList.clear();
     LIST_ENTRY* pResourceEntry = ResidentObjectListHead.Flink;
     while (pResourceEntry != &ResidentObjectListHead)
     {
         ManagedObject* pObject = CONTAINING_RECORD(pResourceEntry, ManagedObject, ListEntry);
+        pResourceEntry = pResourceEntry->Flink;
 
         if (CurrentUsage < CurrentBudget)
         {
@@ -28,18 +28,12 @@ void Internal::LRUCache::TrimToSyncPointInclusive(INT64 CurrentUsage, INT64 Curr
 
         assert(pObject->ResidencyStatus == ManagedObject::RESIDENCY_STATUS::RESIDENT);
 
-        if (pObject->IsPinned())
-        {
-            pResourceEntry = pResourceEntry->Flink;
-        }
-        else
+        if (!pObject->IsPinned())
         {
             EvictionList.push_back(pObject->pUnderlying);
             Evict(pObject);
 
             CurrentUsage -= pObject->Size;
-
-            pResourceEntry = ResidentObjectListHead.Flink;
         }
     }
 }
@@ -50,6 +44,7 @@ void Internal::LRUCache::TrimAgedAllocations(UINT64 FenceValues[], std::vector<I
     while (pResourceEntry != &ResidentObjectListHead)
     {
         ManagedObject* pObject = CONTAINING_RECORD(pResourceEntry, ManagedObject, ListEntry);
+        pResourceEntry = pResourceEntry->Flink;
 
         if (CurrentTimeStamp - pObject->LastUsedTimestamp <= MinDelta) // Don't evict things which have been used recently
         {
@@ -65,17 +60,120 @@ void Internal::LRUCache::TrimAgedAllocations(UINT64 FenceValues[], std::vector<I
 
         assert(pObject->ResidencyStatus == ManagedObject::RESIDENCY_STATUS::RESIDENT);
 
-        if (pObject->IsPinned())
-        {
-            pResourceEntry = pResourceEntry->Flink;
-        }
-        else
+        if (!pObject->IsPinned())
         {
             EvictionList.push_back(pObject->pUnderlying);
             Evict(pObject);
-
-            pResourceEntry = ResidentObjectListHead.Flink;
         }
+    }
+}
+
+void Internal::LRUCache::TrimUnusedAllocationsSinceLastNotificationPeriod(UINT64 CurrentPeriodicTrimNotificationIndex, UINT64 FenceValues[], std::vector<ID3D12Pageable*>& EvictionList, UINT64& BytesToEvict)
+{
+    LIST_ENTRY* pResourceEntry = ResidentObjectListHead.Flink;
+    while (pResourceEntry != &ResidentObjectListHead)
+    {
+        ManagedObject* pObject = CONTAINING_RECORD(pResourceEntry, ManagedObject, ListEntry);
+        pResourceEntry = pResourceEntry->Flink;
+
+        // List is LRU-sorted, this object is still in use on any command queue fence, so we're done
+        for (UINT i = 0; i < (UINT)COMMAND_LIST_TYPE::MAX_VALID; ++i)
+        {
+            if (pObject->LastUsedFenceValues[i] > FenceValues[i])
+            {
+                return;
+            }
+        }
+
+        assert(pObject->ResidencyStatus == ManagedObject::RESIDENCY_STATUS::RESIDENT);
+
+        /* If the object has not been used for at least one full periodic trim cycle and is not pinned, it is eligible for eviction */
+        if (pObject->LastUsedPeriodicTrimNotificationIndex < (CurrentPeriodicTrimNotificationIndex - 1) &&
+            !pObject->IsPinned())
+        {
+            EvictionList.push_back(pObject->pUnderlying);
+            BytesToEvict += pObject->Size;
+            Evict(pObject);
+        }
+    }
+}
+
+void APIENTRY ResidencyManager::PeriodicTrimNotificationCallback(const D3D12_TRIM_NOTIFICATION* pData)
+{
+    ResidencyManager* pResidencyManager = reinterpret_cast<ResidencyManager*>(pData->pContext);
+    assert(pResidencyManager != nullptr);
+
+    // A lock must be taken here as the state of the objects will be altered
+	// and this also gives us exclusive access with ProcessPagingWork and other
+	// functions that modify the residency manager state.
+    std::lock_guard Lock(pResidencyManager->Mutex);
+
+	// Always increase the index even if we don't do a trim this time
+    pResidencyManager->PeriodicTrimNotificationIndex++;
+
+    // Collect the fence values to be used for the call to TrimUnusedAllocationsSinceLastNotificationPeriod
+	// or TrimToSyncPointInclusive below which prevents evicting objects that are still in use on the GPU.
+    UINT64 WaitedFenceValues[(UINT)COMMAND_LIST_TYPE::MAX_VALID];
+    for (UINT i = 0; i < (UINT)COMMAND_LIST_TYPE::MAX_VALID; ++i)
+    {
+        WaitedFenceValues[i] = pResidencyManager->ImmCtx.GetCompletedFenceValue((COMMAND_LIST_TYPE)i);
+    }
+
+    // Clear the eviction list, collect the elements to be trimmed from
+	// depending on the flags in pData, then evict them if there are any.
+    // and clear the list again afterwards before returning.
+    pResidencyManager->EvictionList.clear();
+    UINT64 BytesToEvict = 0u;
+
+    if (pData->Flags & D3D12_TRIM_NOTIFICATION_FLAG_PERIODIC_TRIM)
+    {
+        pResidencyManager->LRU.TrimUnusedAllocationsSinceLastNotificationPeriod(
+            pResidencyManager->PeriodicTrimNotificationIndex,
+			WaitedFenceValues,
+            pResidencyManager->EvictionList,
+            BytesToEvict
+        );
+    }
+
+    if (pData->Flags & D3D12_TRIM_NOTIFICATION_FLAG_TRIM_TO_BUDGET)
+    {
+        // Try to free pData->NumBytesToTrim bytes.
+        LARGE_INTEGER CurrentTime = {};
+        QueryPerformanceCounter(&CurrentTime);
+        DXCoreAdapterMemoryBudget LocalMemory = {};
+        pResidencyManager->GetCurrentBudget(CurrentTime.QuadPart, &LocalMemory);
+
+        UINT64 CurrentUsage = (LocalMemory.currentUsage >= BytesToEvict) ? (LocalMemory.currentUsage - BytesToEvict) : 0u;
+        UINT64 BytesToTrim = min(pData->NumBytesToTrim, CurrentUsage);
+        UINT64 TargetBudget = CurrentUsage - BytesToTrim;
+
+        if (BytesToTrim > 0)
+        {
+            pResidencyManager->LRU.TrimToSyncPointInclusive(
+                CurrentUsage,
+                TargetBudget,
+                pResidencyManager->EvictionList,
+			    WaitedFenceValues
+		    );
+        }
+    }
+
+    // If there are any objects to evict, do so now
+	// and clear the eviction list afterwards.
+    if (!pResidencyManager->EvictionList.empty())
+    {
+        [[maybe_unused]] HRESULT hrEvict = pResidencyManager->Device->Evict((UINT)pResidencyManager->EvictionList.size(), pResidencyManager->EvictionList.data());
+        assert(SUCCEEDED(hrEvict));
+        pResidencyManager->EvictionList.clear();
+    }
+}
+
+ResidencyManager::~ResidencyManager()
+{
+    if (PeriodicTrimCallbackCookie != c_PeriodicTrimCallbackCookie_Unregistered)
+    {
+        [[maybe_unused]] HRESULT hr = Device15->UnregisterTrimNotificationCallback(PeriodicTrimCallbackCookie);
+        assert(SUCCEEDED(hr));
     }
 }
 
@@ -100,6 +198,17 @@ HRESULT ResidencyManager::Initialize(UINT DeviceNodeIndex, IDXCoreAdapter *Paren
 
     HRESULT hr = S_OK;
     hr = AsyncThreadFence.Initialize(Device);
+
+    // Register for Trim Notification Callback if supported by the OS
+    // or ignore the failure and just not do periodic trims on OS that don't support it.
+    if (SUCCEEDED(Device->QueryInterface(&Device15)))
+    {
+        D3D12_REGISTER_TRIM_NOTIFICATION registerArgs = { &PeriodicTrimNotificationCallback, this, 0 };
+        if (SUCCEEDED(Device15->RegisterTrimNotificationCallback(&registerArgs)))
+        {
+            PeriodicTrimCallbackCookie = registerArgs.CallbackCookie;
+        }
+    }
 
     return hr;
 }
@@ -141,6 +250,7 @@ HRESULT ResidencyManager::ProcessPagingWork(UINT CommandListIndex, ResidencySet 
             }
 
             pObject->LastUsedTimestamp = CurrentTime.QuadPart;
+            pObject->LastUsedPeriodicTrimNotificationIndex = PeriodicTrimNotificationIndex;
             LRU.ObjectReferenced(pObject);
         }
 
@@ -262,6 +372,7 @@ HRESULT ResidencyManager::ProcessPagingWork(UINT CommandListIndex, ResidencySet 
                     WaitForSyncPoint(FenceValuesToWaitFor);
                     std::copy(FenceValuesToWaitFor, FenceValuesToWaitFor + (UINT)COMMAND_LIST_TYPE::MAX_VALID, WaitedFenceValues);
 
+                    EvictionList.clear();
                     LRU.TrimToSyncPointInclusive(TotalUsage + INT64(SizeToMakeResident), TotalBudget, EvictionList, WaitedFenceValues);
 
                     [[maybe_unused]] HRESULT hrEvict = Device->Evict((UINT)EvictionList.size(), EvictionList.data());
