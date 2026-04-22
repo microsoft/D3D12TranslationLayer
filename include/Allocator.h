@@ -107,7 +107,7 @@ namespace D3D12TranslationLayer
     class ConditionalAllocator
     {
     public:
-        typedef bool(*RequiresDirectAllocationFunctionType)(typename _SizeType, typename AllocationArgs);
+        typedef bool(*RequiresDirectAllocationFunctionType)(_SizeType, AllocationArgs);
 
         template <typename... SuballocationAllocatorArgs, typename... DirectAllocatorArgs>
         ConditionalAllocator(std::tuple<SuballocationAllocatorArgs...> suballocatedAllocatorArgs,

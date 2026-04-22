@@ -188,7 +188,7 @@ namespace D3D12TranslationLayer
 
     //----------------------------------------------------------------------------------------------------------------------------------
     template<typename TIface>
-    View<TIface>::View(ImmediateContext* pDevice, const typename TDesc12 &Desc, Resource &ViewResource) noexcept(false)
+    View<TIface>::View(ImmediateContext* pDevice, const TDesc12 &Desc, Resource &ViewResource) noexcept(false)
         : ViewBase(pDevice,
         &ViewResource,
         CViewSubresourceSubset(Desc,
@@ -217,7 +217,7 @@ namespace D3D12TranslationLayer
     //----------------------------------------------------------------------------------------------------------------------------------
     // Specialized because no underlying D3D12 video views
     template<>
-    inline View<VideoDecoderOutputViewType>::View(ImmediateContext* pDevice, const typename TDesc12 &Desc, Resource &ViewResource) noexcept(false)
+    inline View<VideoDecoderOutputViewType>::View(ImmediateContext* pDevice, const TDesc12 &Desc, Resource &ViewResource) noexcept(false)
         : ViewBase(pDevice,
             &ViewResource,
             CViewSubresourceSubset(Desc,
@@ -237,7 +237,7 @@ namespace D3D12TranslationLayer
 
     //----------------------------------------------------------------------------------------------------------------------------------
     template<>
-    inline View<VideoProcessorInputViewType>::View(ImmediateContext* pDevice, const typename TDesc12 &Desc, Resource &ViewResource) noexcept(false)
+    inline View<VideoProcessorInputViewType>::View(ImmediateContext* pDevice, const TDesc12 &Desc, Resource &ViewResource) noexcept(false)
         : ViewBase(pDevice,
             &ViewResource,
             CViewSubresourceSubset(Desc,
@@ -257,7 +257,7 @@ namespace D3D12TranslationLayer
 
     //----------------------------------------------------------------------------------------------------------------------------------
     template<>
-    inline View<VideoProcessorOutputViewType>::View(ImmediateContext* pDevice, const typename TDesc12 &Desc, Resource &ViewResource) noexcept(false)
+    inline View<VideoProcessorOutputViewType>::View(ImmediateContext* pDevice, const TDesc12 &Desc, Resource &ViewResource) noexcept(false)
         : ViewBase(pDevice,
             &ViewResource,
             CViewSubresourceSubset(Desc,

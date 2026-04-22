@@ -117,10 +117,10 @@ namespace D3D12TranslationLayer
         };
 
     public: // Methods
-        static View *CreateView(ImmediateContext* pDevice, const typename TDesc12 &Desc, Resource &ViewResource) noexcept(false) { return new View(pDevice, Desc, ViewResource); }
+        static View *CreateView(ImmediateContext* pDevice, const TDesc12 &Desc, Resource &ViewResource) noexcept(false) { return new View(pDevice, Desc, ViewResource); }
         static void DestroyView(View* pView) { delete pView; }
 
-        View(ImmediateContext* pDevice, const typename TDesc12 &Desc, Resource &ViewResource) noexcept(false);
+        View(ImmediateContext* pDevice, const TDesc12 &Desc, Resource &ViewResource) noexcept(false);
         ~View() noexcept;
 
         const TDesc12& GetDesc12() noexcept;
