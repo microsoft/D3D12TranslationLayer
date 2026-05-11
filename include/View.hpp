@@ -51,7 +51,7 @@ namespace D3D12TranslationLayer
     };
 
 #define DECLARE_VIEW_MAPPER(View, DescType12, TranslationLayerDesc) \
-    template<> struct CViewMapper<##View##Type> \
+    template<> struct CViewMapper<View##Type> \
     { \
     typedef TranslationLayerDesc TTranslationLayerDesc; \
     typedef D3D12_##DescType12 TDesc12; \
@@ -59,7 +59,7 @@ namespace D3D12TranslationLayer
     }
 
 #define DECLARE_VIEW_MAPPER1(View, DescType, TranslationLayerDesc) \
-    template<> struct CViewMapper<##View##Type> \
+    template<> struct CViewMapper<View##Type> \
     { \
     typedef TranslationLayerDesc TTranslationLayerDesc; \
     typedef DescType TDesc12; \
