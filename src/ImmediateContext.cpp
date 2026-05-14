@@ -5144,9 +5144,37 @@ void TRANSLATION_API ImmediateContext::GetMipPacking(Resource* pResource, _Out_ 
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
+static constexpr bool IsPossibleDecodeOutputFormat(DXGI_FORMAT format) noexcept
+{
+    static_assert(VIDEO_DECODE_PROFILE_TYPE_H264_MVC + 1 == VIDEO_DECODE_PROFILE_TYPE_MAX_VALID,
+        "Update IsPossibleDecodeOutputFormat and bump this static_assert when adding a new "
+        "VIDEO_DECODE_PROFILE_TYPE_*. Verify the new codec's legal output formats are covered.");
+    switch (format)
+    {
+    case DXGI_FORMAT_NV12:        // H264, HEVC Main, VP8, VP9 prof0, VC1, MPEG2, MPEG4PT2, H264_MVC
+    case DXGI_FORMAT_P010:        // HEVC Main10, VP9 prof2
+    case DXGI_FORMAT_P016:        // sometimes reported alongside P010
+    case DXGI_FORMAT_YUY2:        // legacy MPEG2/VC1 sometimes
+    case DXGI_FORMAT_420_OPAQUE:  // D3D12 opaque internal format
+        return true;
+    default:
+        return false;
+    }
+}
+
+//----------------------------------------------------------------------------------------------------------------------------------
 HRESULT TRANSLATION_API ImmediateContext::CheckFormatSupport(_Out_ D3D12_FEATURE_DATA_FORMAT_SUPPORT& formatData)
 {
-    return m_pDevice12->CheckFeatureSupport(D3D12_FEATURE_FORMAT_SUPPORT, &formatData, sizeof(formatData));
+    HRESULT hr = m_pDevice12->CheckFeatureSupport(D3D12_FEATURE_FORMAT_SUPPORT, &formatData, sizeof(formatData));
+
+    if (SUCCEEDED(hr) &&
+        (formatData.Support1 & D3D12_FORMAT_SUPPORT1_DECODER_OUTPUT) &&
+        !IsPossibleDecodeOutputFormat(formatData.Format))
+    {
+        formatData.Support1 &= ~D3D12_FORMAT_SUPPORT1_DECODER_OUTPUT;
+    }
+
+    return hr;
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
