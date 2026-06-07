@@ -116,7 +116,7 @@ namespace D3D12TranslationLayer
     };
 
     // This represents a set of objects which are referenced by a command list i.e. every time a resource
-    // is bound for rendering, clearing, copy etc. the set must be updated to ensure the it is resident 
+    // is bound for rendering, clearing, copy etc. the set must be updated to ensure the it is resident
     // for execution.
     class ResidencySet
     {
@@ -155,6 +155,7 @@ namespace D3D12TranslationLayer
             Set.clear();
         }
 
+        // Walks the set to clear CommandListsUsedOn for each object; callers must ensure the resources are still valid.
         void Close()
         {
             for (auto pObject : Set)
@@ -166,6 +167,13 @@ namespace D3D12TranslationLayer
         }
 
     private:
+        // Used at teardown to clear the set without walking its resources; resources may already be destroyed at this time so we don't touch them.
+        void Discard()
+        {
+            Set.clear();
+            CommandListIndex = InvalidIndex;
+        }
+
         UINT32 CommandListIndex = InvalidIndex;
         std::vector<ManagedObject*> Set;
     };
@@ -371,6 +379,12 @@ namespace D3D12TranslationLayer
         HRESULT PreExecuteCommandQueueCommand(ID3D12CommandQueue* Queue, UINT CommandListIndex, ResidencySet* pMasterSet)
         {
             return PrepareToExecuteMasterSet(Queue, CommandListIndex, pMasterSet);
+        }
+
+        // Teardown-only path: clear the set without walking its resources.
+        void DiscardResidencySet(ResidencySet* pSet)
+        {
+            pSet->Discard();
         }
 
     private:
