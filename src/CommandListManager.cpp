@@ -541,7 +541,7 @@ namespace D3D12TranslationLayer
         ResetCommandListTrackingData();
         m_pCommandList = nullptr;
 
-        m_pResidencySet->Close();
+        m_pParent->GetResidencyManager().DiscardResidencySet(m_pResidencySet.get());
     }
 
     D3D12_COMMAND_LIST_TYPE CommandListManager::GetD3D12CommandListType(COMMAND_LIST_TYPE type)
