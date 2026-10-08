@@ -145,6 +145,11 @@ namespace D3D12TranslationLayer
 
     protected:
         unique_comptr<ID3D12QueryHeap> m_spQueryHeap[(UINT)COMMAND_LIST_TYPE::MAX_VALID];
+        TimestampQueryPool::Allocation m_TimestampAllocation;
+        ID3D12QueryHeap* GetQueryHeap(COMMAND_LIST_TYPE type) const
+        {
+            return m_TimestampAllocation.Heap ? m_TimestampAllocation.Heap : m_spQueryHeap[(UINT)type].get();
+        }
         D3D12ResourceSuballocation m_spResultBuffer[(UINT)COMMAND_LIST_TYPE::MAX_VALID];
         unique_comptr<ID3D12Resource> m_spPredicationBuffer[(UINT)COMMAND_LIST_TYPE::MAX_VALID];
         UINT m_CurrentInstance;

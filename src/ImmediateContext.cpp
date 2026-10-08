@@ -522,6 +522,7 @@ bool ImmediateContext::TrimResourcePools()
     m_UploadBufferPool.Trim(GetCompletedFenceValue(CommandListType(AllocatorHeapType::Upload)));
     m_ReadbackBufferPool.Trim(GetCompletedFenceValue(CommandListType(AllocatorHeapType::Readback)));
     m_DecoderBufferPool.Trim(GetCompletedFenceValue(CommandListType(AllocatorHeapType::Decoder)));
+    m_GraphicsTimestampQueryPool.Trim(GetCompletedFenceValue(COMMAND_LIST_TYPE::GRAPHICS));
 
     return true;
 }
