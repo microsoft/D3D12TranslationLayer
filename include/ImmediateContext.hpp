@@ -884,6 +884,8 @@ private:
     // It is important that the deferred deletion queue manager gets destroyed last, place solely strict dependencies above.
     COptLockedContainer<DeferredDeletionQueueManager> m_DeferredDeletionQueueManager;
 
+    TimestampQueryPool m_GraphicsTimestampQueryPool;
+
     // Must be initialized before BindingTracker logic for m_CurrentState
     D3D_FEATURE_LEVEL m_FeatureLevel;
 

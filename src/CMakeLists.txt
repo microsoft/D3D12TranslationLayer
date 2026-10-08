@@ -17,6 +17,7 @@ set(SRC
 	MaxFrameLatencyHelper.cpp
 	PipelineState.cpp
 	Query.cpp
+	TimestampQueryPool.cpp
 	Residency.cpp
 	Resource.cpp
 	ResourceBinding.cpp
@@ -57,6 +58,7 @@ set (INC
 	../include/PipelineState.hpp
 	../include/PrecompiledShaders.h
 	../include/Query.hpp
+	../include/TimestampQueryPool.hpp
 	../include/Residency.h
 	../include/Resource.hpp
 	../include/ResourceBinding.hpp
