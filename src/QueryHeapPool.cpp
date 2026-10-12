@@ -12,7 +12,9 @@ namespace D3D12TranslationLayer
         , FreeCount(static_cast<UINT>(Blocks.size()))
     {
         for (UINT i = 0; i + 1 < FreeCount; ++i)
+        {
             Blocks[i].Next = i + 1;
+        }
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
@@ -34,7 +36,9 @@ namespace D3D12TranslationLayer
     {
         // Avoid repeatedly walking pending blocks while the GPU has not advanced.
         if (completedFence <= m_CompletedFence)
+        {
             return;
+        }
         m_CompletedFence = completedFence;
         for (auto& page : m_Pages)
         {
@@ -48,7 +52,9 @@ namespace D3D12TranslationLayer
                     Free(*page, block);
                 }
                 else
+                {
                     link = &page->Blocks[block].Next;
+                }
             }
         }
     }
@@ -99,7 +105,9 @@ namespace D3D12TranslationLayer
         // Releasing a query on the CPU does not mean the GPU has finished using
         // its slots. Reuse them only after the owning queue completes its last submission.
         if (lastUsedFence <= m_CompletedFence)
+        {
             Free(page, block);
+        }
         else
         {
             // Intrusive pending/free lists require no allocation during destruction.
@@ -134,11 +142,15 @@ namespace D3D12TranslationLayer
             if (redundant)
             {
                 if (m_AllocationPage == it->get())
+                {
                     m_AllocationPage = nullptr;
+                }
                 it = m_Pages.erase(it);
             }
             else
+            {
                 ++it;
+            }
         }
     }
 }
