@@ -522,6 +522,10 @@ bool ImmediateContext::TrimResourcePools()
     m_UploadBufferPool.Trim(GetCompletedFenceValue(CommandListType(AllocatorHeapType::Upload)));
     m_ReadbackBufferPool.Trim(GetCompletedFenceValue(CommandListType(AllocatorHeapType::Readback)));
     m_DecoderBufferPool.Trim(GetCompletedFenceValue(CommandListType(AllocatorHeapType::Decoder)));
+    for (UINT listType = 0; listType < (UINT)COMMAND_LIST_TYPE::MAX_VALID; ++listType)
+    {
+        m_QueryHeapPools[listType].Trim(GetCompletedFenceValue((COMMAND_LIST_TYPE)listType));
+    }
 
     return true;
 }

@@ -884,6 +884,13 @@ private:
     // It is important that the deferred deletion queue manager gets destroyed last, place solely strict dependencies above.
     COptLockedContainer<DeferredDeletionQueueManager> m_DeferredDeletionQueueManager;
 
+    QueryHeapPool m_QueryHeapPools[(UINT)COMMAND_LIST_TYPE::MAX_VALID];
+    bool ShouldPoolQuery(EQueryType type, COMMAND_LIST_TYPE commandListType, const D3D12_QUERY_HEAP_DESC&) const noexcept
+    {
+        return commandListType == COMMAND_LIST_TYPE::GRAPHICS
+            && (type == e_QUERY_TIMESTAMP || type == e_QUERY_OCCLUSION);
+    }
+
     // Must be initialized before BindingTracker logic for m_CurrentState
     D3D_FEATURE_LEVEL m_FeatureLevel;
 

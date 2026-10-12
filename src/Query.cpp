@@ -249,6 +249,10 @@ namespace D3D12TranslationLayer
     //----------------------------------------------------------------------------------------------------------------------------------
     Query::~Query()
     {
+        for (UINT listType = 0; listType < (UINT)COMMAND_LIST_TYPE::MAX_VALID; ++listType)
+        {
+            m_pParent->m_QueryHeapPools[listType].Release(m_QueryHeapAllocations[listType], m_LastUsedCommandListID[listType]);
+        }
         for (auto& obj : m_spQueryHeap) { AddToDeferredDeletionQueue(obj); }
         for (auto& obj : m_spResultBuffer)
         {
@@ -292,11 +296,19 @@ namespace D3D12TranslationLayer
             {
                 continue;
             }
-            HRESULT hr = m_pParent->m_pDevice12->CreateQueryHeap(
-                &QueryHeapDesc,
-                IID_PPV_ARGS(&m_spQueryHeap[listType])
-                );
-            ThrowFailure(hr); // throw( _com_error )
+            HRESULT hr = S_OK;
+            if (m_pParent->ShouldPoolQuery(m_Type, (COMMAND_LIST_TYPE)listType, QueryHeapDesc))
+            {
+                m_QueryHeapAllocations[listType] = m_pParent->m_QueryHeapPools[listType].Allocate(
+                    m_pParent->m_pDevice12.get(), QueryHeapDesc,
+                    m_pParent->GetCompletedFenceValue((COMMAND_LIST_TYPE)listType));
+            }
+            else
+            {
+                hr = m_pParent->m_pDevice12->CreateQueryHeap(
+                    &QueryHeapDesc, IID_PPV_ARGS(&m_spQueryHeap[listType]));
+                ThrowFailure(hr); // throw( _com_error )
+            }
 
             // Query data goes into a readback heap for CPU readback in GetData
             {
@@ -376,17 +388,20 @@ namespace D3D12TranslationLayer
         auto DoEndQuery = [&](auto pIface, COMMAND_LIST_TYPE commandListType, UINT subQuery)
         {
             UINT Index = QueryIndex(m_CurrentInstance, subQuery, NumSubQueries);
+            // Heap indices include the pooled allocation base; readback offsets
+            // remain local to this query.
+            const UINT HeapIndex = m_QueryHeapAllocations[(UINT)commandListType].BaseIndex + Index;
 
             pIface->EndQuery(
-                m_spQueryHeap[(UINT)commandListType].get(),
+                GetQueryHeap(commandListType),
                 static_cast<D3D12_QUERY_TYPE>(QueryType12 + subQuery),
-                Index
+                HeapIndex
                 );
 
             pIface->ResolveQueryData(
-                m_spQueryHeap[(UINT)commandListType].get(),
+                GetQueryHeap(commandListType),
                 static_cast<D3D12_QUERY_TYPE>(QueryType12 + subQuery),
-                Index,
+                HeapIndex,
                 1,
                 m_spResultBuffer[(UINT)commandListType].GetResource(),
                 Index * DataSize12 + m_spResultBuffer[(UINT)commandListType].GetOffset()
@@ -460,9 +475,9 @@ namespace D3D12TranslationLayer
         auto DoBeginQuery = [&](auto pIface, COMMAND_LIST_TYPE commandListType, UINT subQuery)
         {
             pIface->BeginQuery(
-                m_spQueryHeap[(UINT)commandListType].get(),
+                GetQueryHeap(commandListType),
                 static_cast<D3D12_QUERY_TYPE>(QueryType12 + subQuery),
-                QueryIndex(m_CurrentInstance, subQuery, NumSubQueries)
+                m_QueryHeapAllocations[(UINT)commandListType].BaseIndex + QueryIndex(m_CurrentInstance, subQuery, NumSubQueries)
                 );
         };
 
