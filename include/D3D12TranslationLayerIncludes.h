@@ -38,7 +38,7 @@
 #include "ResourceState.hpp"
 #include "RootSignature.hpp"
 #include "Resource.hpp"
-#include "TimestampQueryPool.hpp"
+#include "QueryHeapPool.hpp"
 #include "Query.hpp"
 #include "ResourceCache.hpp"
 #include "BlitHelper.hpp"

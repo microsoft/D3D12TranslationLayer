@@ -5,14 +5,24 @@
 namespace D3D12TranslationLayer
 {
     //----------------------------------------------------------------------------------------------------------------------------------
-    TimestampQueryPool::Page::Page()
+    QueryHeapPool::Page::Page(const D3D12_QUERY_HEAP_DESC& desc)
+        : Desc{ desc.Type, (desc.Count > SlotsPerHeap ? 1 : SlotsPerHeap / desc.Count) * desc.Count, desc.NodeMask }
+        , SlotsPerAllocation(desc.Count)
+        , Blocks(Desc.Count / desc.Count)
+        , FreeCount(static_cast<UINT>(Blocks.size()))
     {
-        for (UINT i = 0; i + 1 < BlocksPerHeap; ++i)
+        for (UINT i = 0; i + 1 < FreeCount; ++i)
             Blocks[i].Next = i + 1;
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    void TimestampQueryPool::Free(Page& page, UINT block) noexcept
+    bool QueryHeapPool::Page::Matches(const D3D12_QUERY_HEAP_DESC& desc) const noexcept
+    {
+        return Desc.Type == desc.Type && Desc.NodeMask == desc.NodeMask && SlotsPerAllocation == desc.Count;
+    }
+
+    //----------------------------------------------------------------------------------------------------------------------------------
+    void QueryHeapPool::Free(Page& page, UINT block) noexcept
     {
         page.Blocks[block].Next = page.FreeHead;
         page.FreeHead = block;
@@ -20,7 +30,7 @@ namespace D3D12TranslationLayer
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    void TimestampQueryPool::Collect(UINT64 completedFence) noexcept
+    void QueryHeapPool::Collect(UINT64 completedFence) noexcept
     {
         // Avoid repeatedly walking pending blocks while the GPU has not advanced.
         if (completedFence <= m_CompletedFence)
@@ -44,17 +54,18 @@ namespace D3D12TranslationLayer
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    TimestampQueryPool::Allocation TimestampQueryPool::Allocate(
-        ID3D12Device* device, UINT nodeMask, UINT64 completedFence) noexcept(false)
+    QueryHeapPool::Allocation QueryHeapPool::Allocate(
+        ID3D12Device* device, const D3D12_QUERY_HEAP_DESC& desc, UINT64 completedFence) noexcept(false)
     {
+        ThrowFailure(device && desc.Count ? S_OK : E_INVALIDARG); // throw( _com_error )
         std::lock_guard<std::mutex> lock(m_Mutex);
         Collect(completedFence);
-        if (!m_AllocationPage || !m_AllocationPage->FreeCount)
+        if (!m_AllocationPage || !m_AllocationPage->FreeCount || !m_AllocationPage->Matches(desc))
         {
             m_AllocationPage = nullptr;
             for (auto& page : m_Pages)
             {
-                if (page->FreeCount)
+                if (page->FreeCount && page->Matches(desc))
                 {
                     m_AllocationPage = page.get();
                     break;
@@ -62,9 +73,8 @@ namespace D3D12TranslationLayer
             }
             if (!m_AllocationPage)
             {
-                auto page = std::make_unique<Page>(); // throw( std::bad_alloc )
-                D3D12_QUERY_HEAP_DESC desc = { D3D12_QUERY_HEAP_TYPE_TIMESTAMP, SlotsPerHeap, nodeMask };
-                ThrowFailure(device->CreateQueryHeap(&desc, IID_PPV_ARGS(&page->Heap))); // throw( _com_error )
+                auto page = std::make_unique<Page>(desc); // throw( std::bad_alloc )
+                ThrowFailure(device->CreateQueryHeap(&page->Desc, IID_PPV_ARGS(&page->Heap))); // throw( _com_error )
                 // Commit ownership before handing out a block; allocation failures
                 // leave the existing pool unchanged and release the new heap.
                 m_Pages.push_back(std::move(page)); // throw( std::bad_alloc )
@@ -75,19 +85,19 @@ namespace D3D12TranslationLayer
         const UINT block = page.FreeHead;
         page.FreeHead = page.Blocks[block].Next;
         --page.FreeCount;
-        return { page.Heap.get(), block * SlotsPerQuery, &page };
+        return { page.Heap.get(), block * page.SlotsPerAllocation, &page };
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    void TimestampQueryPool::Release(Allocation& allocation, UINT64 lastUsedFence) noexcept
+    void QueryHeapPool::Release(Allocation& allocation, UINT64 lastUsedFence) noexcept
     {
         if (!allocation.Owner)
             return;
         std::lock_guard<std::mutex> lock(m_Mutex);
         Page& page = *allocation.Owner;
-        const UINT block = allocation.BaseIndex / SlotsPerQuery;
+        const UINT block = allocation.BaseIndex / page.SlotsPerAllocation;
         // Releasing a query on the CPU does not mean the GPU has finished using
-        // its slots. Reuse them only after the last graphics submission completes.
+        // its slots. Reuse them only after the owning queue completes its last submission.
         if (lastUsedFence <= m_CompletedFence)
             Free(page, block);
         else
@@ -101,27 +111,34 @@ namespace D3D12TranslationLayer
     }
 
     //----------------------------------------------------------------------------------------------------------------------------------
-    void TimestampQueryPool::Trim(UINT64 completedFence) noexcept
+    void QueryHeapPool::Trim(UINT64 completedFence) noexcept
     {
         std::lock_guard<std::mutex> lock(m_Mutex);
         Collect(completedFence);
-        // Retain one fully free heap to avoid recreating it for subsequent queries;
-        // release the remaining empty heaps.
-        bool retainedEmptyPage = false;
+        // Retain one empty heap per type, allocation size and node mask for reuse.
         for (auto it = m_Pages.begin(); it != m_Pages.end();)
         {
-            if ((*it)->FreeCount == BlocksPerHeap)
+            bool redundant = false;
+            if ((*it)->FreeCount == (*it)->Blocks.size())
             {
-                if (retainedEmptyPage)
+                const D3D12_QUERY_HEAP_DESC key = { (*it)->Desc.Type, (*it)->SlotsPerAllocation, (*it)->Desc.NodeMask };
+                for (auto prior = m_Pages.begin(); prior != it; ++prior)
                 {
-                    if (m_AllocationPage == it->get())
-                        m_AllocationPage = nullptr;
-                    it = m_Pages.erase(it);
-                    continue;
+                    if ((*prior)->FreeCount == (*prior)->Blocks.size() && (*prior)->Matches(key))
+                    {
+                        redundant = true;
+                        break;
+                    }
                 }
-                retainedEmptyPage = true;
             }
-            ++it;
+            if (redundant)
+            {
+                if (m_AllocationPage == it->get())
+                    m_AllocationPage = nullptr;
+                it = m_Pages.erase(it);
+            }
+            else
+                ++it;
         }
     }
 }

@@ -249,8 +249,10 @@ namespace D3D12TranslationLayer
     //----------------------------------------------------------------------------------------------------------------------------------
     Query::~Query()
     {
-        m_pParent->m_GraphicsTimestampQueryPool.Release(
-            m_TimestampAllocation, m_LastUsedCommandListID[(UINT)COMMAND_LIST_TYPE::GRAPHICS]);
+        for (UINT listType = 0; listType < (UINT)COMMAND_LIST_TYPE::MAX_VALID; ++listType)
+        {
+            m_pParent->m_QueryHeapPools[listType].Release(m_QueryHeapAllocations[listType], m_LastUsedCommandListID[listType]);
+        }
         for (auto& obj : m_spQueryHeap) { AddToDeferredDeletionQueue(obj); }
         for (auto& obj : m_spResultBuffer)
         {
@@ -295,12 +297,11 @@ namespace D3D12TranslationLayer
                 continue;
             }
             HRESULT hr = S_OK;
-            if (m_Type == e_QUERY_TIMESTAMP && m_CommandListTypeMask == COMMAND_LIST_TYPE_GRAPHICS_MASK
-                && QueryHeapDesc.Count == TimestampQueryPool::SlotsPerQuery)
+            if (m_pParent->ShouldPoolQuery(m_Type, (COMMAND_LIST_TYPE)listType, QueryHeapDesc))
             {
-                m_TimestampAllocation = m_pParent->m_GraphicsTimestampQueryPool.Allocate(
-                    m_pParent->m_pDevice12.get(), m_pParent->GetNodeMask(),
-                    m_pParent->GetCompletedFenceValue(COMMAND_LIST_TYPE::GRAPHICS));
+                m_QueryHeapAllocations[listType] = m_pParent->m_QueryHeapPools[listType].Allocate(
+                    m_pParent->m_pDevice12.get(), QueryHeapDesc,
+                    m_pParent->GetCompletedFenceValue((COMMAND_LIST_TYPE)listType));
             }
             else
             {
@@ -389,7 +390,7 @@ namespace D3D12TranslationLayer
             UINT Index = QueryIndex(m_CurrentInstance, subQuery, NumSubQueries);
             // Heap indices include the pooled allocation base; readback offsets
             // remain local to this query.
-            const UINT HeapIndex = m_TimestampAllocation.BaseIndex + Index;
+            const UINT HeapIndex = m_QueryHeapAllocations[(UINT)commandListType].BaseIndex + Index;
 
             pIface->EndQuery(
                 GetQueryHeap(commandListType),
@@ -471,15 +472,12 @@ namespace D3D12TranslationLayer
             AdvanceInstance();
         }
 
-        // Only timestamps are pooled, and they do not use Begin, so queries on
-        // this path have no allocation base. If pooling is extended to queries
-        // that use Begin, include the allocation base in the heap index below.
         auto DoBeginQuery = [&](auto pIface, COMMAND_LIST_TYPE commandListType, UINT subQuery)
         {
             pIface->BeginQuery(
                 GetQueryHeap(commandListType),
                 static_cast<D3D12_QUERY_TYPE>(QueryType12 + subQuery),
-                QueryIndex(m_CurrentInstance, subQuery, NumSubQueries)
+                m_QueryHeapAllocations[(UINT)commandListType].BaseIndex + QueryIndex(m_CurrentInstance, subQuery, NumSubQueries)
                 );
         };
 

@@ -4,12 +4,10 @@
 
 namespace D3D12TranslationLayer
 {
-    // Graphics timestamp queries retain their existing four-instance layout.
-    class TimestampQueryPool
+    class QueryHeapPool
     {
         struct Page;
     public:
-        static constexpr UINT SlotsPerQuery = 4;
         static constexpr UINT SlotsPerHeap = 4096;
         struct Allocation
         {
@@ -18,12 +16,11 @@ namespace D3D12TranslationLayer
             Page* Owner = nullptr;
         };
 
-        Allocation Allocate(ID3D12Device* device, UINT nodeMask, UINT64 completedFence) noexcept(false);
+        Allocation Allocate(ID3D12Device* device, const D3D12_QUERY_HEAP_DESC& desc, UINT64 completedFence) noexcept(false);
         void Release(Allocation& allocation, UINT64 lastUsedFence) noexcept;
         void Trim(UINT64 completedFence) noexcept;
 
     private:
-        static constexpr UINT BlocksPerHeap = SlotsPerHeap / SlotsPerQuery;
         static constexpr UINT InvalidBlock = UINT_MAX;
         struct Block
         {
@@ -33,11 +30,14 @@ namespace D3D12TranslationLayer
         struct Page
         {
             unique_comptr<ID3D12QueryHeap> Heap;
-            Block Blocks[BlocksPerHeap];
+            const D3D12_QUERY_HEAP_DESC Desc;
+            const UINT SlotsPerAllocation;
+            std::vector<Block> Blocks;
             UINT FreeHead = 0;
             UINT PendingHead = InvalidBlock;
-            UINT FreeCount = BlocksPerHeap;
-            Page();
+            UINT FreeCount;
+            explicit Page(const D3D12_QUERY_HEAP_DESC& desc);
+            bool Matches(const D3D12_QUERY_HEAP_DESC& desc) const noexcept;
         };
         void Collect(UINT64 completedFence) noexcept;
         static void Free(Page& page, UINT block) noexcept;
