@@ -2198,9 +2198,24 @@ void TRANSLATION_API ImmediateContext::GenMips( SRV *pSRV, D3D12_FILTER_TYPE Fil
 #ifdef USE_PIX
     PIXScopedEvent(GetGraphicsCommandList(), 0ull, L"GenerateMips");
 #endif
-    PreRender(COMMAND_LIST_TYPE::GRAPHICS);
     auto pResource = pSRV->m_pResource;
-    
+    UINT ResMipLevels = pResource->AppDesc()->MipLevels();
+
+    // Apply all transitions before setting any command list state below: applying transitions can flush,
+    // and state set directly on the command list does not carry over to the new one.
+    for (auto subresourceRange : pSRV->m_subresources)
+    {
+        for (UINT subresource = subresourceRange.first; subresource < subresourceRange.second; ++subresource)
+        {
+            bool bSourceOnly = (subresource == subresourceRange.first) || (subresource % ResMipLevels == 0);
+            m_ResourceStateManager.TransitionSubresource(pResource, subresource,
+                bSourceOnly ? D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE : D3D12_RESOURCE_STATE_RENDER_TARGET);
+        }
+    }
+    m_ResourceStateManager.ApplyAllResourceTransitions();
+
+    PreRender(COMMAND_LIST_TYPE::GRAPHICS);
+
     // GenerateMips is deprecated in D3D12
     // It is implemented in 11on12 via draws which average the pixels of the higher mips into the pixels of the lower mips
 
@@ -2245,8 +2260,6 @@ void TRANSLATION_API ImmediateContext::GenMips( SRV *pSRV, D3D12_FILTER_TYPE Fil
     D3D12_RESOURCE_DIMENSION Dimension = pResource->Parent()->ResourceDimension12();
     DXGI_FORMAT Format = pSRV->GetDesc12().Format;
     ID3D12PipelineState* pGenMipsPSO = PrepareGenerateMipsObjects(Format, Dimension); // throw( _com_error, bad_alloc )
-
-    UINT ResMipLevels = pResource->AppDesc()->MipLevels();
 
     // If there's no room for the SRV descriptor in the online heap, re-create it before applying state to the command list
     UINT ViewHeapSlot = ReserveSlots(m_ViewHeap, 1); // throw( _com_error )
