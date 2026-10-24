@@ -1166,6 +1166,11 @@ bool TRANSLATION_API ImmediateContext::Flush(UINT commandListTypeMask)
             m_CommandLists[i]->SubmitCommandList();
             bSubmitCommandList = true;
         }
+        else if ((commandListTypeMask & (1 << i)) && m_CommandLists[i] && m_CommandLists[i]->NeedSubmitFence())
+        {
+            // Queries/waits may already be tracking this command list ID.
+            m_CommandLists[i]->PrepForCommandQueueSync();
+        }
     }
 
     // Even if there are no commands, the app could have still done things like delete resources,
