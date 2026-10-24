@@ -36,6 +36,8 @@ namespace D3D12TranslationLayer
         }
         D3D12_RESOURCE_BARRIER Barrier = CD3DX12_RESOURCE_BARRIER::Transition( backBuffer.get(), OperationState, D3D12_RESOURCE_STATE_COMMON );
         context.GetGraphicsCommandList()->ResourceBarrier( 1, &Barrier );
+        // Count the barrier: the copy/resolve may already have submitted, and Flush skips lists with no commands.
+        context.AdditionalCommandsAdded( D3D12TranslationLayer::COMMAND_LIST_TYPE::GRAPHICS );
         context.Flush( D3D12TranslationLayer::COMMAND_LIST_TYPE_ALL_MASK );
 
         HRESULT hr = m_swapChain->Present( pKMTPresent->FlipInterval, pKMTPresent->FlipInterval == 0 ? DXGI_PRESENT_ALLOW_TEARING : 0 );
