@@ -864,7 +864,7 @@ class ImmediateContext
 public:
     // D3D12 objects
     // TODO: const
-    const unique_comptr<ID3D12Device16> m_pDevice12;
+    const unique_comptr<ID3D12Device16> m_pDevice16;
 #if DYNAMIC_LOAD_DXCORE
     XPlatHelpers::unique_module m_DXCore;
 #endif
@@ -937,7 +937,7 @@ public:
     };
 
     ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTIONS& caps,
-        ID3D12Device* pDevice, ID3D12CommandQueue* pQueue, TranslationLayerCallbacks const& callbacks, UINT64 debugFlags, CreationArgs args) noexcept(false);
+        ID3D12Device16* pDevice, ID3D12CommandQueue* pQueue, TranslationLayerCallbacks const& callbacks, UINT64 debugFlags, CreationArgs args) noexcept(false);
     ~ImmediateContext() noexcept;
 
 #if TRANSLATION_LAYER_DBG
@@ -1475,7 +1475,7 @@ public: // Methods
         }
         else
         {
-            return m_pDevice12->GetCustomHeapProperties(GetNodeMask(), Type);
+            return m_pDevice16->GetCustomHeapProperties(GetNodeMask(), Type);
         }
     }
 

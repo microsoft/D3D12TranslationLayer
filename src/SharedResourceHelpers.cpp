@@ -13,7 +13,7 @@ namespace D3D12TranslationLayer
     SharedResourceLocalHandle TRANSLATION_API SharedResourceHelpers::CreateKMTHandle(_In_ HANDLE resourceHandle)
     {
         CComPtr<IUnknown> spResource;
-        ThrowFailure(m_ImmCtx.m_pDevice12->OpenSharedHandle(resourceHandle, IID_PPV_ARGS(&spResource)));
+        ThrowFailure(m_ImmCtx.m_pDevice16->OpenSharedHandle(resourceHandle, IID_PPV_ARGS(&spResource)));
         UINT handle = GetHandleForResource(spResource);
 
         // No more exceptions
@@ -259,7 +259,7 @@ namespace D3D12TranslationLayer
             }
 
             D3D12_FEATURE_DATA_FORMAT_SUPPORT formatSupport = { Desc.Format };
-            (void)m_ImmCtx.m_pDevice12->CheckFeatureSupport1(D3D12_FEATURE_FORMAT_SUPPORT, &formatSupport, sizeof(formatSupport), D3D12_SDK_VERSION);
+            (void)m_ImmCtx.m_pDevice16->CheckFeatureSupport1(D3D12_FEATURE_FORMAT_SUPPORT, &formatSupport, sizeof(formatSupport), D3D12_SDK_VERSION);
 
             if (pOverrideFlags || FAILED(m_ImmCtx.m_pCompatDevice->ReflectSharedProperties(
                 spResource, D3D12_REFLECT_SHARED_PROPERTY_D3D11_RESOURCE_FLAGS, &Flags, sizeof(Flags))))
@@ -287,7 +287,7 @@ namespace D3D12TranslationLayer
                             Flags.MiscFlags |= 0x200000 /*D3D11_RESOURCE_MISC_SHARED_EXCLUSIVE_WRITER*/;
                         }
                     }
-                    Flags.CPUAccessFlags = ConvertPossibleCPUAccessFlags(HeapProps, m_ImmCtx.m_pDevice12.get());
+                    Flags.CPUAccessFlags = ConvertPossibleCPUAccessFlags(HeapProps, m_ImmCtx.m_pDevice16.get());
                 }
                 else
                 {
@@ -354,7 +354,7 @@ namespace D3D12TranslationLayer
             {
                 // Ensure the 11 flags are a subset of capabilities implied by the 12 resource desc
                 assert(SUCCEEDED(spResource->GetHeapProperties(&HeapProps, &HeapFlags)));
-                assert((Flags.CPUAccessFlags & ~ConvertPossibleCPUAccessFlags(HeapProps, m_ImmCtx.m_pDevice12.get())) == 0);
+                assert((Flags.CPUAccessFlags & ~ConvertPossibleCPUAccessFlags(HeapProps, m_ImmCtx.m_pDevice16.get())) == 0);
                 assert((Flags.BindFlags & ~ConvertPossibleBindFlags(Desc, HeapFlags, formatSupport, m_CreationFlags.SupportDisplayableTextures)) == 0);
                 assert((~Flags.MiscFlags & ConvertHeapMiscFlags(HeapFlags, pResourceInfo->m_bNTHandle, pResourceInfo->m_bSynchronized)) == 0);
             }

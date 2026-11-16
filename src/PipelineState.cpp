@@ -108,7 +108,7 @@ namespace D3D12TranslationLayer
     {
         typedef PSOTraits<Type> PSOTraits;
 
-        HRESULT hr = (m_pParent->m_pDevice12.get()->*PSOTraits::GetCreate())(&PSOTraits::GetDesc(*this), IID_PPV_ARGS(GetForCreate()));
+        HRESULT hr = (m_pParent->m_pDevice16.get()->*PSOTraits::GetCreate())(&PSOTraits::GetDesc(*this), IID_PPV_ARGS(GetForCreate()));
         if (FAILED(hr))
         {
             MICROSOFT_TELEMETRY_ASSERT(hr != E_INVALIDARG);
@@ -141,7 +141,7 @@ namespace D3D12TranslationLayer
                 Compute.m_Desc.CachedPSO.CachedBlobSizeInBytes = spBlob->GetBufferSize();
             }
 
-            hr = (m_pParent->m_pDevice12.get()->*PSOTraits::GetCreate())(&PSOTraits::GetDesc(*this), IID_PPV_ARGS(GetForCreate()));
+            hr = (m_pParent->m_pDevice16.get()->*PSOTraits::GetCreate())(&PSOTraits::GetDesc(*this), IID_PPV_ARGS(GetForCreate()));
             ThrowFailure(hr); // throw( _com_error )
         }
     }

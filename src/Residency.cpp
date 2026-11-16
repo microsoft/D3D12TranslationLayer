@@ -183,7 +183,7 @@ HRESULT ResidencyManager::Initialize(UINT DeviceNodeIndex, IDXCoreAdapter *Paren
     AdapterDXCore = ParentAdapterDXCore;
     AdapterDXGI = ParentAdapterDXGI;
 
-    if (FAILED(ImmCtx.m_pDevice12->QueryInterface(&Device)))
+    if (FAILED(ImmCtx.m_pDevice16->QueryInterface(&Device)))
     {
         return E_NOINTERFACE;
     }

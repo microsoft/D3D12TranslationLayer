@@ -489,7 +489,7 @@ namespace D3D12TranslationLayer
                         D3D12_VIDEO_FRAME_STEREO_FORMAT_SEPARATE : D3D12_VIDEO_FRAME_STEREO_FORMAT_NONE,
                     pOutputArguments->D3D12OutputStreamDesc.FrameRate,
                 };
-                CComQIPtr<ID3D12VideoDevice> spVideoDevice = m_pParent->m_pDevice12.get();
+                CComQIPtr<ID3D12VideoDevice> spVideoDevice = m_pParent->m_pDevice16.get();
                 bNeedToDeinterlace =
                     FAILED(spVideoDevice->CheckFeatureSupport(D3D12_FEATURE_VIDEO_PROCESS_SUPPORT, &VPSupport, sizeof(VPSupport))) ||
                     (VPSupport.DeinterlaceSupport & D3D12_VIDEO_PROCESS_DEINTERLACE_FLAG_BOB) == D3D12_VIDEO_PROCESS_DEINTERLACE_FLAG_NONE;
@@ -704,7 +704,7 @@ namespace D3D12TranslationLayer
                 D3D12_GPU_DESCRIPTOR_HANDLE SRVBaseGPU = m_pParent->m_ViewHeap.GPUHandle(SRVBaseSlot);
                 SRVBaseSlot++;
 
-                m_pParent->m_pDevice12->CopyDescriptorsSimple(1, SRVBaseCPU, inputSRV.GetRefreshedDescriptorHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+                m_pParent->m_pDevice16->CopyDescriptorsSimple(1, SRVBaseCPU, inputSRV.GetRefreshedDescriptorHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
                 pCommandList->SetPipelineState(m_spDeinterlacePSOs[ViewFormat]->GetForUse(COMMAND_LIST_TYPE::GRAPHICS));
 

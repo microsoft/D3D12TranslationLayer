@@ -662,7 +662,7 @@ inline void ImmediateContext::PreDraw() noexcept(false)
             UAVTableBase = m_ViewHeap.GPUHandle(ViewHeapSlot);
             D3D12_CPU_DESCRIPTOR_HANDLE UAVTableBaseCPU = m_ViewHeap.CPUHandle(ViewHeapSlot);
 
-            m_pDevice12->CopyDescriptors(1, &UAVTableBaseCPU, &numUAVs,
+            m_pDevice16->CopyDescriptors(1, &UAVTableBaseCPU, &numUAVs,
                 numUAVs, UAVDescriptors, nullptr /*sizes*/,
                 m_ViewHeap.m_Desc.Type);
 
@@ -860,7 +860,7 @@ inline void ImmediateContext::DirtyShaderResourcesHelper(UINT& HeapSlot) noexcep
     CurrentState.m_SRVTableBase = m_ViewHeap.GPUHandle(HeapSlot);
     D3D12_CPU_DESCRIPTOR_HANDLE SRVTableBaseCPU = m_ViewHeap.CPUHandle(HeapSlot);
 
-    m_pDevice12->CopyDescriptors(1, &SRVTableBaseCPU, &numSRVs,
+    m_pDevice16->CopyDescriptors(1, &SRVTableBaseCPU, &numSRVs,
         numSRVs, Descriptors, nullptr /*sizes*/,
         m_ViewHeap.m_Desc.Type);
 
@@ -894,7 +894,7 @@ inline void ImmediateContext::DirtyConstantBuffersHelper(UINT& HeapSlot) noexcep
         GetBufferViewDesc(pBuffer, CBDesc, APIOffset, APISize);
 
         D3D12_CPU_DESCRIPTOR_HANDLE Descriptor = m_ViewHeap.CPUHandle(HeapSlot + i);
-        m_pDevice12->CreateConstantBufferView(&CBDesc, Descriptor);
+        m_pDevice16->CreateConstantBufferView(&CBDesc, Descriptor);
     }
 
     CurrentState.m_CBTableBase = m_ViewHeap.GPUHandle(HeapSlot);
@@ -926,7 +926,7 @@ inline void ImmediateContext::DirtySamplersHelper(UINT& HeapSlot) noexcept
     CurrentState.m_SamplerTableBase = m_SamplerHeap.GPUHandle(HeapSlot);
     D3D12_CPU_DESCRIPTOR_HANDLE SamplerTableBaseCPU = m_SamplerHeap.CPUHandle(HeapSlot);
 
-    m_pDevice12->CopyDescriptors(1, &SamplerTableBaseCPU, &numSamplers,
+    m_pDevice16->CopyDescriptors(1, &SamplerTableBaseCPU, &numSamplers,
         numSamplers, Descriptors, nullptr /*sizes*/,
         m_SamplerHeap.m_Desc.Type);
 
@@ -1182,7 +1182,7 @@ inline void ImmediateContext::PreDispatch() noexcept(false)
             UAVTableBase = m_ViewHeap.GPUHandle(ViewHeapSlot);
             D3D12_CPU_DESCRIPTOR_HANDLE UAVTableBaseCPU = m_ViewHeap.CPUHandle(ViewHeapSlot);
 
-            m_pDevice12->CopyDescriptors(1, &UAVTableBaseCPU, &numUAVs,
+            m_pDevice16->CopyDescriptors(1, &UAVTableBaseCPU, &numUAVs,
                 numUAVs, UAVDescriptors, nullptr /*sizes*/,
                 m_ViewHeap.m_Desc.Type);
 

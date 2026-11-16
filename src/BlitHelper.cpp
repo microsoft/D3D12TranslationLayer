@@ -343,12 +343,12 @@ namespace D3D12TranslationLayer
             }
 
             D3D12_CPU_DESCRIPTOR_HANDLE SRVBaseCPU = m_pParent->m_ViewHeap.CPUHandle(SRVBaseSlot + i);
-            m_pParent->m_pDevice12->CreateShaderResourceView(pSrc->GetUnderlyingResource(), &SRVDesc, SRVBaseCPU);
+            m_pParent->m_pDevice16->CreateShaderResourceView(pSrc->GetUnderlyingResource(), &SRVDesc, SRVBaseCPU);
         }
         for (UINT i = numSrcSubresources; i < MAX_PLANES; ++i)
         {
             D3D12_CPU_DESCRIPTOR_HANDLE SRVBaseCPU = m_pParent->m_ViewHeap.CPUHandle(SRVBaseSlot + i);
-            m_pParent->m_pDevice12->CopyDescriptorsSimple(1, SRVBaseCPU, m_pParent->m_NullSRVs[(UINT)RESOURCE_DIMENSION::TEXTURE2DARRAY], D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+            m_pParent->m_pDevice16->CopyDescriptorsSimple(1, SRVBaseCPU, m_pParent->m_NullSRVs[(UINT)RESOURCE_DIMENSION::TEXTURE2DARRAY], D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
         }
         D3D12_GPU_DESCRIPTOR_HANDLE SRVBaseGPU = m_pParent->m_ViewHeap.GPUHandle(SRVBaseSlot);
         pCommandList->SetGraphicsRootDescriptorTable(0, SRVBaseGPU);
