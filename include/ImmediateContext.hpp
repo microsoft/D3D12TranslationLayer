@@ -864,7 +864,7 @@ class ImmediateContext
 public:
     // D3D12 objects
     // TODO: const
-    const unique_comptr<ID3D12Device> m_pDevice12;
+    const unique_comptr<ID3D12Device16> m_pDevice12;
 #if DYNAMIC_LOAD_DXCORE
     XPlatHelpers::unique_module m_DXCore;
 #endif

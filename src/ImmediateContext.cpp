@@ -54,10 +54,15 @@ ImmediateContext::SStageState& ImmediateContext::SState::GetStageState(EShaderSt
 //----------------------------------------------------------------------------------------------------------------------------------
 ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTIONS& caps, 
     ID3D12Device* pDevice, ID3D12CommandQueue* pQueue, TranslationLayerCallbacks const& callbacks, UINT64 debugFlags, CreationArgs args) noexcept(false)
-    : m_nodeIndex(nodeIndex)
+    : m_pDevice12([pDevice]()
+        {
+            unique_comptr<ID3D12Device16> device;
+            ThrowFailure(pDevice->QueryInterface(&device));
+            return device;
+        }())
+    , m_nodeIndex(nodeIndex)
     , m_caps(caps)
-    , m_FeatureLevel(GetHardwareFeatureLevel(pDevice))
-    , m_pDevice12(pDevice)
+    , m_FeatureLevel(GetHardwareFeatureLevel(m_pDevice12.get()))
     , m_SRVAllocator(pDevice, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1024, args.CreatesAndDestroysAreMultithreaded, 1 << nodeIndex)
     , m_UAVAllocator(pDevice, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1024, args.CreatesAndDestroysAreMultithreaded, 1 << nodeIndex)
     , m_RTVAllocator(pDevice, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 64, args.CreatesAndDestroysAreMultithreaded, 1 << nodeIndex)
@@ -189,7 +194,7 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
 
     //Fetch additional caps
     m_options13 = {};
-    pDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS13, &m_options13, sizeof(m_options13));
+    m_pDevice12->CheckFeatureSupport1(D3D12_FEATURE_D3D12_OPTIONS13, &m_options13, sizeof(m_options13), D3D12_SDK_VERSION);
 
     // Create initial objects
     hr = m_pDevice12->CreateDescriptorHeap(&m_ViewHeap.m_Desc, IID_PPV_ARGS(&m_ViewHeap.m_pDescriptorHeap));
@@ -5187,7 +5192,7 @@ static constexpr bool IsPossibleDecodeOutputFormat(DXGI_FORMAT format) noexcept
 //----------------------------------------------------------------------------------------------------------------------------------
 HRESULT TRANSLATION_API ImmediateContext::CheckFormatSupport(_Out_ D3D12_FEATURE_DATA_FORMAT_SUPPORT& formatData)
 {
-    HRESULT hr = m_pDevice12->CheckFeatureSupport(D3D12_FEATURE_FORMAT_SUPPORT, &formatData, sizeof(formatData));
+    HRESULT hr = m_pDevice12->CheckFeatureSupport1(D3D12_FEATURE_FORMAT_SUPPORT, &formatData, sizeof(formatData), D3D12_SDK_VERSION);
 
     if (SUCCEEDED(hr) &&
         (formatData.Support1 & D3D12_FORMAT_SUPPORT1_DECODER_OUTPUT) &&
@@ -5216,7 +5221,7 @@ void TRANSLATION_API ImmediateContext::CheckMultisampleQualityLevels(DXGI_FORMAT
     SupportStruct.Format = format;
     SupportStruct.SampleCount = SampleCount;
     SupportStruct.Flags = Flags;
-    HRESULT hr = m_pDevice12->CheckFeatureSupport(D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &SupportStruct, sizeof(SupportStruct));
+    HRESULT hr = m_pDevice12->CheckFeatureSupport1(D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &SupportStruct, sizeof(SupportStruct), D3D12_SDK_VERSION);
 
     *pNumQualityLevels = SUCCEEDED(hr) ? SupportStruct.NumQualityLevels : 0;
 }
@@ -5224,7 +5229,7 @@ void TRANSLATION_API ImmediateContext::CheckMultisampleQualityLevels(DXGI_FORMAT
 //----------------------------------------------------------------------------------------------------------------------------------
 void TRANSLATION_API ImmediateContext::CheckFeatureSupport(D3D12_FEATURE Feature, _Inout_updates_bytes_(FeatureSupportDataSize)void* pFeatureSupportData, UINT FeatureSupportDataSize)
 {
-    ThrowFailure(m_pDevice12->CheckFeatureSupport(Feature, pFeatureSupportData, FeatureSupportDataSize));
+    ThrowFailure(m_pDevice12->CheckFeatureSupport1(Feature, pFeatureSupportData, FeatureSupportDataSize, D3D12_SDK_VERSION));
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------

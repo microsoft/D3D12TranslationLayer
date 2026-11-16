@@ -259,7 +259,7 @@ namespace D3D12TranslationLayer
             }
 
             D3D12_FEATURE_DATA_FORMAT_SUPPORT formatSupport = { Desc.Format };
-            (void)m_ImmCtx.m_pDevice12->CheckFeatureSupport(D3D12_FEATURE_FORMAT_SUPPORT, &formatSupport, sizeof(formatSupport));
+            (void)m_ImmCtx.m_pDevice12->CheckFeatureSupport1(D3D12_FEATURE_FORMAT_SUPPORT, &formatSupport, sizeof(formatSupport), D3D12_SDK_VERSION);
 
             if (pOverrideFlags || FAILED(m_ImmCtx.m_pCompatDevice->ReflectSharedProperties(
                 spResource, D3D12_REFLECT_SHARED_PROPERTY_D3D11_RESOURCE_FLAGS, &Flags, sizeof(Flags))))
