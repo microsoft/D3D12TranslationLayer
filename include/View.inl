@@ -123,7 +123,7 @@ namespace D3D12TranslationLayer
             UpdateMinLOD(m_pResource->GetMinLOD());
 
             const TDesc12 &Desc = GetDesc12();
-            (m_pParent->m_pDevice12.get()->*CViewMapper<TIface>::GetCreate())(
+            (m_pParent->m_pDevice16.get()->*CViewMapper<TIface>::GetCreate())(
                 m_pResource->GetUnderlyingResource(),
                 &Desc,
                 m_Descriptor);
@@ -143,7 +143,7 @@ namespace D3D12TranslationLayer
         UAV* p11on12UAV = static_cast<UAV*>(this);
         const TDesc12 &Desc = GetDesc12();
 
-        m_pParent->m_pDevice12.get()->CreateUnorderedAccessView(
+        m_pParent->m_pDevice16.get()->CreateUnorderedAccessView(
             m_pResource->GetUnderlyingResource(),
             p11on12UAV->m_pCounterResource.get(),
             &Desc,

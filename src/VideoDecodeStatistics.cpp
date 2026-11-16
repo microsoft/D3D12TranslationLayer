@@ -22,7 +22,7 @@ namespace D3D12TranslationLayer
         , m_ResultCount(DXVA_MIN_STATUS_REPORTS)
     {
         D3D12_QUERY_HEAP_DESC QueryHeapDesc = { D3D12_QUERY_HEAP_TYPE_VIDEO_DECODE_STATISTICS, 1, m_pParent->GetNodeMask() };
-        ThrowFailure(m_pParent->m_pDevice12->CreateQueryHeap(
+        ThrowFailure(m_pParent->m_pDevice16->CreateQueryHeap(
                 &QueryHeapDesc,
                 IID_PPV_ARGS(&m_spQueryHeap)
                 )); // throw( _com_error )

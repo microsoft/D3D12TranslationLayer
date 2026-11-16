@@ -251,7 +251,7 @@ namespace D3D12TranslationLayer
                 ResourceArgs.m_appDesc = AppResourceDesc(ResourceArgs.m_desc12, RESOURCE_USAGE_DEFAULT, RESOURCE_CPU_ACCESS_NONE, RESOURCE_BIND_DECODER);
 
                 UINT64 resourceSize = 0;
-                m_pImmediateContext->m_pDevice12->GetCopyableFootprints(&ResourceArgs.m_desc12, 0, 1, 0, nullptr, nullptr, nullptr, &resourceSize);
+                m_pImmediateContext->m_pDevice16->GetCopyableFootprints(&ResourceArgs.m_desc12, 0, 1, 0, nullptr, nullptr, nullptr, &resourceSize);
                 ResourceArgs.m_heapDesc = CD3DX12_HEAP_DESC(resourceSize, m_pImmediateContext->GetHeapProperties(D3D12_HEAP_TYPE_DEFAULT));
 
                 for (ReferenceData& referenceData : referenceDatas)
@@ -273,7 +273,7 @@ namespace D3D12TranslationLayer
                 ResourceArgs.m_appDesc = AppResourceDesc(ResourceArgs.m_desc12, RESOURCE_USAGE_DEFAULT, RESOURCE_CPU_ACCESS_NONE, RESOURCE_BIND_DECODER);
 
                 UINT64 resourceSize = 0;
-                m_pImmediateContext->m_pDevice12->GetCopyableFootprints(&ResourceArgs.m_desc12, 0, 1, 0, nullptr, nullptr, nullptr, &resourceSize);
+                m_pImmediateContext->m_pDevice16->GetCopyableFootprints(&ResourceArgs.m_desc12, 0, 1, 0, nullptr, nullptr, nullptr, &resourceSize);
                 ResourceArgs.m_heapDesc = CD3DX12_HEAP_DESC(resourceSize, m_pImmediateContext->GetHeapProperties(D3D12_HEAP_TYPE_DEFAULT));
 
                 unique_comptr<Resource> spReferenceOnlyTextureArray = Resource::CreateResource(m_pImmediateContext, ResourceArgs, ResourceAllocationContext::ImmediateContextThreadLongLived);

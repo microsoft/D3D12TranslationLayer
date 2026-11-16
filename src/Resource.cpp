@@ -288,7 +288,7 @@ namespace D3D12TranslationLayer
     {
         // Query tiling data
         D3D12_PACKED_MIP_INFO PackedMipDesc;
-        m_pParent->m_pDevice12->GetResourceTiling(
+        m_pParent->m_pDevice16->GetResourceTiling(
             m_Identity->GetResource(),
             &m_TiledResource.m_NumTilesForResource,
             &PackedMipDesc,
@@ -313,7 +313,7 @@ namespace D3D12TranslationLayer
 
         m_TiledResource.m_NumStandardMips = PackedMipDesc.NumStandardMips;
 
-        m_pParent->m_pDevice12->GetResourceTiling(
+        m_pParent->m_pDevice16->GetResourceTiling(
             m_Identity->GetResource(),
             nullptr,
             nullptr,
@@ -384,7 +384,7 @@ namespace D3D12TranslationLayer
 
             m_Identity->m_pResidencyHandle = std::unique_ptr<ResidencyManagedObjectWrapper>(new ResidencyManagedObjectWrapper(residencyManager));
             D3D12_RESOURCE_DESC resourceDesc12 = m_creationArgs.m_desc12;
-            D3D12_RESOURCE_ALLOCATION_INFO allocInfo = m_pParent->m_pDevice12->GetResourceAllocationInfo(m_pParent->GetNodeMask(), 1, &resourceDesc12);
+            D3D12_RESOURCE_ALLOCATION_INFO allocInfo = m_pParent->m_pDevice16->GetResourceAllocationInfo(m_pParent->GetNodeMask(), 1, &resourceDesc12);
 
             m_Identity->m_pResidencyHandle->Initialize(m_Identity->GetResource(), allocInfo.SizeInBytes, bIsResident);
         }
@@ -475,7 +475,7 @@ namespace D3D12TranslationLayer
                 }
                 else
                 {
-                    hr = m_pParent->m_pDevice12->CreateHeap(
+                    hr = m_pParent->m_pDevice16->CreateHeap(
                         &HeapDesc,
                         IID_PPV_ARGS(&Allocation.m_spUnderlyingBufferHeap));
                 }
@@ -556,7 +556,7 @@ namespace D3D12TranslationLayer
                     bool bDesiresSimultaneousAccess = (Flags11.BindFlags & (D3D11_BIND_RENDER_TARGET | D3D11_BIND_DEPTH_STENCIL)) == 0;
                     Desc12.Flags |= (bSupportsSimultaneousAccess && bDesiresSimultaneousAccess) ?
                         D3D12_RESOURCE_FLAG_ALLOW_SIMULTANEOUS_ACCESS : D3D12_RESOURCE_FLAG_NONE;
-                    hr = m_pParent->m_pDevice12->CreateReservedResource(
+                    hr = m_pParent->m_pDevice16->CreateReservedResource(
                         &Desc12,
                         D3D12_RESOURCE_STATE_COMMON,
                         nullptr, // Clear values
@@ -564,7 +564,7 @@ namespace D3D12TranslationLayer
                 }
                 else
                 {
-                    hr = m_pParent->m_pDevice12->CreateCommittedResource(
+                    hr = m_pParent->m_pDevice16->CreateCommittedResource(
                         &HeapDesc.Properties,
                         HeapDesc.Flags,
                         &Desc12,
@@ -702,7 +702,7 @@ namespace D3D12TranslationLayer
             0,
             AppDesc()->ResourceDimension() == D3D12_RESOURCE_DIMENSION_BUFFER ? D3D12_TEXTURE_LAYOUT_ROW_MAJOR : D3D12_TEXTURE_LAYOUT_UNKNOWN,
             D3D12_RESOURCE_FLAG_NONE);
-        ID3D12Device* pDevice = m_pParent->m_pDevice12.get();
+        ID3D12Device* pDevice = m_pParent->m_pDevice16.get();
 
         pDevice->GetCopyableFootprints(&ResDesc, 0, NumSubresources(), 0, &m_SubresourcePlacement[0], nullptr, nullptr, nullptr);
 

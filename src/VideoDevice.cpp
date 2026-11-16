@@ -201,7 +201,7 @@ namespace D3D12TranslationLayer
         {
             if (m_decodeProfiles[i].profileGUID == pDesc->DecodeProfile)
             {
-                VideoDecode::GetVideoDecoderConfigCount(m_pParent->m_pDevice12.get(), m_pParent->GetNodeIndex(), pDesc, pConfigCount);
+                VideoDecode::GetVideoDecoderConfigCount(m_pParent->m_pDevice16.get(), m_pParent->GetNodeIndex(), pDesc, pConfigCount);
                 return;
             }
         }
@@ -216,7 +216,7 @@ namespace D3D12TranslationLayer
         {
             if (m_decodeProfiles[i].profileGUID == pDesc->DecodeProfile)
             {
-                VideoDecode::GetVideoDecoderConfig(m_pParent->m_pDevice12.get(), m_pParent->GetNodeIndex(), pDesc, Index, pConfig, m_pParent->IsXbox());
+                VideoDecode::GetVideoDecoderConfig(m_pParent->m_pDevice16.get(), m_pParent->GetNodeIndex(), pDesc, Index, pConfig, m_pParent->IsXbox());
                 return;
             }
         }

@@ -11,7 +11,7 @@ namespace D3D12TranslationLayer
         if (!pDevice->ComputeOnly())
         {
             m_Descriptor = pDevice->m_SamplerAllocator.AllocateHeapSlot(&m_DescriptorHeapIndex); // throw( _com_error )
-            pDevice->m_pDevice12->CreateSampler(&desc, m_Descriptor);
+            pDevice->m_pDevice16->CreateSampler(&desc, m_Descriptor);
         }
     }
 

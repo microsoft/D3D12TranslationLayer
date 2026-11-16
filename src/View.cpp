@@ -50,7 +50,7 @@ namespace D3D12TranslationLayer
                 D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS
                 );
 
-            HRESULT hr = m_pParent->m_pDevice12->CreateCommittedResource(
+            HRESULT hr = m_pParent->m_pDevice16->CreateCommittedResource(
                 &HeapProp,
                 D3D12_HEAP_FLAG_NONE,
                 &ResourceDesc,

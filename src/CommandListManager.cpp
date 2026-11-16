@@ -43,13 +43,13 @@ namespace D3D12TranslationLayer
             queue.Flags = m_pParent->m_CreationArgs.DisableGPUTimeout ?
                 D3D12_COMMAND_QUEUE_FLAG_DISABLE_GPU_TIMEOUT : D3D12_COMMAND_QUEUE_FLAG_NONE;
             CComPtr<ID3D12Device9> spDevice9;
-            if (SUCCEEDED(m_pParent->m_pDevice12->QueryInterface(&spDevice9)))
+            if (SUCCEEDED(m_pParent->m_pDevice16->QueryInterface(&spDevice9)))
             {
                 ThrowFailure(spDevice9->CreateCommandQueue1(&queue, m_pParent->m_CreationArgs.CreatorID, IID_PPV_ARGS(&m_pCommandQueue)));
             }
             else
             {
-                ThrowFailure(m_pParent->m_pDevice12->CreateCommandQueue(&queue, IID_PPV_ARGS(&m_pCommandQueue)));
+                ThrowFailure(m_pParent->m_pDevice16->CreateCommandQueue(&queue, IID_PPV_ARGS(&m_pCommandQueue)));
             }
         }
 
@@ -160,7 +160,7 @@ namespace D3D12TranslationLayer
             CurrentFence,
             pfnWaitForFence,
             pfnCreateNew,
-            m_pParent->m_pDevice12.get(),
+            m_pParent->m_pDevice16.get(),
             GetD3D12CommandListType(m_type)
             );
 
@@ -173,7 +173,7 @@ namespace D3D12TranslationLayer
         else
         {
             // Create a new command list
-            hr = m_pParent->m_pDevice12->CreateCommandList(m_pParent->GetNodeMask(),
+            hr = m_pParent->m_pDevice16->CreateCommandList(m_pParent->GetNodeMask(),
                 GetD3D12CommandListType(m_type),
                 m_pCommandAllocator.get(),
                 nullptr,

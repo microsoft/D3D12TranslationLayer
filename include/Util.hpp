@@ -498,7 +498,7 @@ namespace D3D12TranslationLayer
         }
     }
 
-    inline D3D_FEATURE_LEVEL GetHardwareFeatureLevel(ID3D12Device *pDevice)
+    inline D3D_FEATURE_LEVEL GetHardwareFeatureLevel(ID3D12Device16 *pDevice)
     {
         static const D3D_FEATURE_LEVEL RequestedD3D12FeatureLevels[] =
         {
@@ -510,7 +510,7 @@ namespace D3D12TranslationLayer
         };
 
         D3D12_FEATURE_DATA_FEATURE_LEVELS featureLevels = { ARRAYSIZE(RequestedD3D12FeatureLevels), RequestedD3D12FeatureLevels };
-        ThrowFailure(pDevice->CheckFeatureSupport(D3D12_FEATURE_FEATURE_LEVELS, &featureLevels, sizeof(featureLevels)));
+        ThrowFailure(pDevice->CheckFeatureSupport1(D3D12_FEATURE_FEATURE_LEVELS, &featureLevels, sizeof(featureLevels), D3D12_SDK_VERSION));
         return featureLevels.MaxSupportedFeatureLevel;
     }
 

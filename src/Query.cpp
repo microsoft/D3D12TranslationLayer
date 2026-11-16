@@ -300,12 +300,12 @@ namespace D3D12TranslationLayer
             if (m_pParent->ShouldPoolQuery(m_Type, (COMMAND_LIST_TYPE)listType, QueryHeapDesc))
             {
                 m_QueryHeapAllocations[listType] = m_pParent->m_QueryHeapPools[listType].Allocate(
-                    m_pParent->m_pDevice12.get(), QueryHeapDesc,
+                    m_pParent->m_pDevice16.get(), QueryHeapDesc,
                     m_pParent->GetCompletedFenceValue((COMMAND_LIST_TYPE)listType));
             }
             else
             {
-                hr = m_pParent->m_pDevice12->CreateQueryHeap(
+                hr = m_pParent->m_pDevice16->CreateQueryHeap(
                     &QueryHeapDesc, IID_PPV_ARGS(&m_spQueryHeap[listType]));
                 ThrowFailure(hr); // throw( _com_error )
             }
@@ -360,7 +360,7 @@ namespace D3D12TranslationLayer
                         );
 
                     // D3D12_RESOURCE_STATE_PREDICATION is the required state for SetPredication
-                    hr = m_pParent->m_pDevice12->CreateCommittedResource(
+                    hr = m_pParent->m_pDevice16->CreateCommittedResource(
                         &HeapProp,
                         D3D12_HEAP_FLAG_NONE,
                         &ResourceDesc,
@@ -1121,7 +1121,7 @@ namespace D3D12TranslationLayer
         UAVDesc.Buffer.FirstElement = FirstElement;
         UAVDesc.Buffer.NumElements = NumElements;
 
-        m_pDevice12->CreateUnorderedAccessView(
+        m_pDevice16->CreateUnorderedAccessView(
             pBuffer,
             nullptr,
             &UAVDesc,

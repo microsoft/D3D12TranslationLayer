@@ -53,11 +53,11 @@ ImmediateContext::SStageState& ImmediateContext::SState::GetStageState(EShaderSt
 
 //----------------------------------------------------------------------------------------------------------------------------------
 ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTIONS& caps, 
-    ID3D12Device* pDevice, ID3D12CommandQueue* pQueue, TranslationLayerCallbacks const& callbacks, UINT64 debugFlags, CreationArgs args) noexcept(false)
-    : m_nodeIndex(nodeIndex)
+    ID3D12Device16* pDevice, ID3D12CommandQueue* pQueue, TranslationLayerCallbacks const& callbacks, UINT64 debugFlags, CreationArgs args) noexcept(false)
+    : m_pDevice16(pDevice)
+    , m_nodeIndex(nodeIndex)
     , m_caps(caps)
-    , m_FeatureLevel(GetHardwareFeatureLevel(pDevice))
-    , m_pDevice12(pDevice)
+    , m_FeatureLevel(GetHardwareFeatureLevel(m_pDevice16.get()))
     , m_SRVAllocator(pDevice, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1024, args.CreatesAndDestroysAreMultithreaded, 1 << nodeIndex)
     , m_UAVAllocator(pDevice, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1024, args.CreatesAndDestroysAreMultithreaded, 1 << nodeIndex)
     , m_RTVAllocator(pDevice, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 64, args.CreatesAndDestroysAreMultithreaded, 1 << nodeIndex)
@@ -141,7 +141,7 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
     D3D12TranslationLayer::InitializeListHead(&m_ActiveQueryList);
 
     D3D12_COMMAND_QUEUE_DESC SyncOnlyQueueDesc = { D3D12_COMMAND_LIST_TYPE_NONE };
-    (void)m_pDevice12->CreateCommandQueue(&SyncOnlyQueueDesc, IID_PPV_ARGS(&m_pSyncOnlyQueue));
+    (void)m_pDevice16->CreateCommandQueue(&SyncOnlyQueueDesc, IID_PPV_ARGS(&m_pSyncOnlyQueue));
 
     LUID adapterLUID = pDevice->GetAdapterLuid();
     {
@@ -189,21 +189,21 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
 
     //Fetch additional caps
     m_options13 = {};
-    pDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS13, &m_options13, sizeof(m_options13));
+    m_pDevice16->CheckFeatureSupport1(D3D12_FEATURE_D3D12_OPTIONS13, &m_options13, sizeof(m_options13), D3D12_SDK_VERSION);
 
     // Create initial objects
-    hr = m_pDevice12->CreateDescriptorHeap(&m_ViewHeap.m_Desc, IID_PPV_ARGS(&m_ViewHeap.m_pDescriptorHeap));
+    hr = m_pDevice16->CreateDescriptorHeap(&m_ViewHeap.m_Desc, IID_PPV_ARGS(&m_ViewHeap.m_pDescriptorHeap));
     ThrowFailure(hr); //throw( _com_error )
-    m_ViewHeap.m_DescriptorSize = m_pDevice12->GetDescriptorHandleIncrementSize(m_ViewHeap.m_Desc.Type);
+    m_ViewHeap.m_DescriptorSize = m_pDevice16->GetDescriptorHandleIncrementSize(m_ViewHeap.m_Desc.Type);
     m_ViewHeap.m_DescriptorHeapBase = m_ViewHeap.m_pDescriptorHeap->GetGPUDescriptorHandleForHeapStart().ptr;
     m_ViewHeap.m_DescriptorHeapBaseCPU = m_ViewHeap.m_pDescriptorHeap->GetCPUDescriptorHandleForHeapStart().ptr;
     m_ViewHeap.m_BitsToSetOnNewHeap = e_ViewsDirty;
 
     if (!ComputeOnly())
     {
-        hr = m_pDevice12->CreateDescriptorHeap(&m_SamplerHeap.m_Desc, IID_PPV_ARGS(&m_SamplerHeap.m_pDescriptorHeap));
+        hr = m_pDevice16->CreateDescriptorHeap(&m_SamplerHeap.m_Desc, IID_PPV_ARGS(&m_SamplerHeap.m_pDescriptorHeap));
         ThrowFailure(hr); //throw( _com_error )
-        m_SamplerHeap.m_DescriptorSize = m_pDevice12->GetDescriptorHandleIncrementSize(m_SamplerHeap.m_Desc.Type);
+        m_SamplerHeap.m_DescriptorSize = m_pDevice16->GetDescriptorHandleIncrementSize(m_SamplerHeap.m_Desc.Type);
         m_SamplerHeap.m_DescriptorHeapBase = m_SamplerHeap.m_pDescriptorHeap->GetGPUDescriptorHandleForHeapStart().ptr;
         m_SamplerHeap.m_DescriptorHeapBaseCPU = m_SamplerHeap.m_pDescriptorHeap->GetCPUDescriptorHandleForHeapStart().ptr;
         m_SamplerHeap.m_BitsToSetOnNewHeap = e_SamplersDirty;
@@ -326,13 +326,13 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
         if (NullSRVDesc.ViewDimension != D3D12_SRV_DIMENSION_UNKNOWN)
         {
             m_NullSRVs[i] = m_SRVAllocator.AllocateHeapSlot(); // throw( _com_error )
-            m_pDevice12->CreateShaderResourceView(nullptr, &NullSRVDesc, m_NullSRVs[i]);
+            m_pDevice16->CreateShaderResourceView(nullptr, &NullSRVDesc, m_NullSRVs[i]);
         }
 
         if (NullUAVDesc.ViewDimension != D3D12_UAV_DIMENSION_UNKNOWN)
         {
             m_NullUAVs[i] = m_UAVAllocator.AllocateHeapSlot(); // throw( _com_error )
-            m_pDevice12->CreateUnorderedAccessView(nullptr, nullptr, &NullUAVDesc, m_NullUAVs[i]);
+            m_pDevice16->CreateUnorderedAccessView(nullptr, nullptr, &NullUAVDesc, m_NullUAVs[i]);
         }
     }
     if (!ComputeOnly())
@@ -343,7 +343,7 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
         NullRTVDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
         NullRTVDesc.Texture2D.MipSlice = 0;
         NullRTVDesc.Texture2D.PlaneSlice = 0;
-        m_pDevice12->CreateRenderTargetView(nullptr, &NullRTVDesc, m_NullRTV);
+        m_pDevice16->CreateRenderTargetView(nullptr, &NullRTVDesc, m_NullRTV);
     }
 
     if (!ComputeOnly())
@@ -361,12 +361,12 @@ ImmediateContext::ImmediateContext(UINT nodeIndex, D3D12_FEATURE_DATA_D3D12_OPTI
         NullSamplerDesc.MinLOD = 0.0f;
         NullSamplerDesc.MaxLOD = 0.0f;
         memset(NullSamplerDesc.BorderColor, 0, sizeof(NullSamplerDesc.BorderColor));
-        m_pDevice12->CreateSampler(&NullSamplerDesc, m_NullSampler);
+        m_pDevice16->CreateSampler(&NullSamplerDesc, m_NullSampler);
     }
 
-    (void)m_pDevice12->QueryInterface(&m_pDevice12_1);
-    (void)m_pDevice12->QueryInterface(&m_pDevice12_2);
-    m_pDevice12->QueryInterface(&m_pCompatDevice);
+    (void)m_pDevice16->QueryInterface(&m_pDevice12_1);
+    (void)m_pDevice16->QueryInterface(&m_pDevice12_2);
+    m_pDevice16->QueryInterface(&m_pCompatDevice);
 
     m_CommandLists[(UINT)COMMAND_LIST_TYPE::GRAPHICS].reset(new CommandListManager(this, pQueue, COMMAND_LIST_TYPE::GRAPHICS)); // throw( bad_alloc )
     m_CommandLists[(UINT)COMMAND_LIST_TYPE::GRAPHICS]->InitCommandList();
@@ -554,7 +554,7 @@ void ImmediateContext::RollOverHeap(OnlineDescriptorHeap& Heap) noexcept(false)
     auto pfnCreateNew = [this](D3D12_DESCRIPTOR_HEAP_DESC const& Desc) -> unique_comptr<ID3D12DescriptorHeap>
     {
         unique_comptr<ID3D12DescriptorHeap> spHeap;
-        ThrowFailure(m_pDevice12->CreateDescriptorHeap(&Desc, IID_PPV_ARGS(&spHeap)));
+        ThrowFailure(m_pDevice16->CreateDescriptorHeap(&Desc, IID_PPV_ARGS(&spHeap)));
         return std::move(spHeap);
     };
 
@@ -982,7 +982,7 @@ void ImmediateContext::SameResourceCopy(Resource *pDst, UINT DstSubresource, Res
         StagingDesc.SampleDesc.Quality, RESOURCE_USAGE_DEFAULT, (RESOURCE_CPU_ACCESS)0, (RESOURCE_BIND_FLAGS)0, StagingDesc.Dimension);
 
     UINT64 resourceSize = 0;
-    m_pDevice12->GetCopyableFootprints(&StagingDesc, 0, 1, 0, nullptr, nullptr, nullptr, &resourceSize);
+    m_pDevice16->GetCopyableFootprints(&StagingDesc, 0, 1, 0, nullptr, nullptr, nullptr, &resourceSize);
     bool bReallocateStagingBuffer = false;
 
     auto &pStagingResource = bUseBufferCopy ? m_pStagingBuffer : m_pStagingTexture;
@@ -1456,7 +1456,7 @@ void TRANSLATION_API ImmediateContext::ClearUnorderedAccessViewUint(UAV *pUAV, C
     D3D12_GPU_DESCRIPTOR_HANDLE GPUDescriptor = m_ViewHeap.GPUHandle(ViewHeapSlot);
     D3D12_CPU_DESCRIPTOR_HANDLE CPUDescriptor = m_ViewHeap.CPUHandle(ViewHeapSlot);
 
-    m_pDevice12->CopyDescriptorsSimple( 1, CPUDescriptor, Descriptor, m_ViewHeap.m_Desc.Type );
+    m_pDevice16->CopyDescriptorsSimple( 1, CPUDescriptor, Descriptor, m_ViewHeap.m_Desc.Type );
 
     GetGraphicsCommandList()->ClearUnorderedAccessViewUint(GPUDescriptor, Descriptor, pUAV->m_pResource->GetUnderlyingResource(),
                                                         color, NumRects, pRects);
@@ -1479,7 +1479,7 @@ void TRANSLATION_API ImmediateContext::ClearUnorderedAccessViewFloat(UAV *pUAV, 
     D3D12_GPU_DESCRIPTOR_HANDLE GPUDescriptor = m_ViewHeap.GPUHandle(ViewHeapSlot);
     D3D12_CPU_DESCRIPTOR_HANDLE CPUDescriptor = m_ViewHeap.CPUHandle(ViewHeapSlot);
 
-    m_pDevice12->CopyDescriptorsSimple( 1, CPUDescriptor, Descriptor, m_ViewHeap.m_Desc.Type );
+    m_pDevice16->CopyDescriptorsSimple( 1, CPUDescriptor, Descriptor, m_ViewHeap.m_Desc.Type );
 
     GetGraphicsCommandList()->ClearUnorderedAccessViewFloat(GPUDescriptor, Descriptor, pUAV->m_pResource->GetUnderlyingResource(),
                                                             color, NumRects, pRects);
@@ -2012,7 +2012,7 @@ void ImmediateContext::EnsureDrawAutoResources() noexcept(false)
         PSODesc.CS.BytecodeLength = sizeof(g_DrawAutoCS);
         PSODesc.NodeMask = GetNodeMask();
 
-        HRESULT hr = m_pDevice12->CreateComputePipelineState(&PSODesc, IID_PPV_ARGS(&m_pDrawAutoPSO));
+        HRESULT hr = m_pDevice16->CreateComputePipelineState(&PSODesc, IID_PPV_ARGS(&m_pDrawAutoPSO));
         ThrowFailure(hr); // throw( _com_error )
     }
 }
@@ -2032,7 +2032,7 @@ void ImmediateContext::EnsureQueryResources() noexcept(false)
         PSODesc.CS.BytecodeLength = sizeof(g_FormatQueryCS);
         PSODesc.NodeMask = GetNodeMask();
 
-        HRESULT hr = m_pDevice12->CreateComputePipelineState(&PSODesc, IID_PPV_ARGS(&m_pFormatQueryPSO));
+        HRESULT hr = m_pDevice16->CreateComputePipelineState(&PSODesc, IID_PPV_ARGS(&m_pFormatQueryPSO));
         ThrowFailure(hr); // throw( _com_error )
     }
 
@@ -2046,7 +2046,7 @@ void ImmediateContext::EnsureQueryResources() noexcept(false)
         PSODesc.CS.BytecodeLength = sizeof(g_AccumulateQueryCS);
         PSODesc.NodeMask = GetNodeMask();
 
-        HRESULT hr = m_pDevice12->CreateComputePipelineState(&PSODesc, IID_PPV_ARGS(&m_pAccumulateQueryPSO));
+        HRESULT hr = m_pDevice16->CreateComputePipelineState(&PSODesc, IID_PPV_ARGS(&m_pAccumulateQueryPSO));
         ThrowFailure(hr); // throw( _com_error )
     }
 }
@@ -2067,7 +2067,7 @@ void ImmediateContext::EnsureExecuteIndirectResources() noexcept(false)
         CommandSignatureDesc.pArgumentDescs = &IndirectArg;
         CommandSignatureDesc.NodeMask = GetNodeMask();
 
-        hr = m_pDevice12->CreateCommandSignature(
+        hr = m_pDevice16->CreateCommandSignature(
             &CommandSignatureDesc,
             nullptr,
             IID_PPV_ARGS(&m_pDrawInstancedCommandSignature)
@@ -2087,7 +2087,7 @@ void ImmediateContext::EnsureExecuteIndirectResources() noexcept(false)
         CommandSignatureDesc.pArgumentDescs = &IndirectArg;
         CommandSignatureDesc.NodeMask = GetNodeMask();
 
-        hr = m_pDevice12->CreateCommandSignature(
+        hr = m_pDevice16->CreateCommandSignature(
             &CommandSignatureDesc,
             nullptr,
             IID_PPV_ARGS(&m_pDrawIndexedInstancedCommandSignature)
@@ -2107,7 +2107,7 @@ void ImmediateContext::EnsureExecuteIndirectResources() noexcept(false)
         CommandSignatureDesc.pArgumentDescs = &IndirectArg;
         CommandSignatureDesc.NodeMask = GetNodeMask();
 
-        hr = m_pDevice12->CreateCommandSignature(
+        hr = m_pDevice16->CreateCommandSignature(
             &CommandSignatureDesc,
             nullptr,
             IID_PPV_ARGS(&m_pDispatchCommandSignature)
@@ -2144,7 +2144,7 @@ ID3D12PipelineState* ImmediateContext::PrepareGenerateMipsObjects(DXGI_FORMAT Fo
         {
             SamplerDesc.Filter = SamplerFilter;
             m_GenerateMipsSamplers[FilterType] = m_SamplerAllocator.AllocateHeapSlot(); // throw( _com_error )
-            m_pDevice12->CreateSampler(&SamplerDesc, m_GenerateMipsSamplers[FilterType]);
+            m_pDevice16->CreateSampler(&SamplerDesc, m_GenerateMipsSamplers[FilterType]);
         };
         
         pfnInitializeSampler(D3D12_FILTER_TYPE_LINEAR, D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT, SamplerDesc);
@@ -2189,7 +2189,7 @@ ID3D12PipelineState* ImmediateContext::PrepareGenerateMipsObjects(DXGI_FORMAT Fo
     PSODesc.NodeMask = GetNodeMask();
 
     unique_comptr<ID3D12PipelineState> spPSO;
-    hr = m_pDevice12->CreateGraphicsPipelineState(&PSODesc, IID_PPV_ARGS(&spPSO));
+    hr = m_pDevice16->CreateGraphicsPipelineState(&PSODesc, IID_PPV_ARGS(&spPSO));
     ThrowFailure(hr); // throw( _com_error )
 
     auto insertRet = m_pGenerateMipsPSOMap.emplace(Key, std::move(spPSO));
@@ -2323,17 +2323,17 @@ void TRANSLATION_API ImmediateContext::GenMips( SRV *pSRV, D3D12_FILTER_TYPE Fil
         SRVDesc.Texture2DArray.ArraySize = NumCubes * 6;
         SRVDesc.Texture2DArray.PlaneSlice = 0;
         SRVDesc.Texture2DArray.ResourceMinLODClamp = 0.0f;
-        m_pDevice12->CreateShaderResourceView( pResource->GetUnderlyingResource(), &SRVDesc, CPUDescriptor );
+        m_pDevice16->CreateShaderResourceView( pResource->GetUnderlyingResource(), &SRVDesc, CPUDescriptor );
     }
     else
     {
-        m_pDevice12->CopyDescriptorsSimple( 1, CPUDescriptor, pSRV->GetRefreshedDescriptorHandle(), m_ViewHeap.m_Desc.Type );
+        m_pDevice16->CopyDescriptorsSimple( 1, CPUDescriptor, pSRV->GetRefreshedDescriptorHandle(), m_ViewHeap.m_Desc.Type );
     }
 
     GetGraphicsCommandList()->SetGraphicsRootDescriptorTable(GenerateMipsRootSignatureSlots::eSRV, GPUDescriptor);
 
     // Bind Sampler
-    m_pDevice12->CopyDescriptorsSimple(1, CPUSamplerDescriptor, m_GenerateMipsSamplers[FilterType], m_SamplerHeap.m_Desc.Type);
+    m_pDevice16->CopyDescriptorsSimple(1, CPUSamplerDescriptor, m_GenerateMipsSamplers[FilterType], m_SamplerHeap.m_Desc.Type);
     GetGraphicsCommandList()->SetGraphicsRootDescriptorTable(GenerateMipsRootSignatureSlots::eSampler, GPUSamplerDescriptor);
 
     // Get RTV descriptor
@@ -2399,7 +2399,7 @@ void TRANSLATION_API ImmediateContext::GenMips( SRV *pSRV, D3D12_FILTER_TYPE Fil
                         ASSUME(false);
                 }
 
-                m_pDevice12->CreateRenderTargetView(pResource->GetUnderlyingResource(), &RTVDesc, RTVDescriptor);
+                m_pDevice16->CreateRenderTargetView(pResource->GetUnderlyingResource(), &RTVDesc, RTVDescriptor);
                 GetGraphicsCommandList()->OMSetRenderTargets(1, &RTVDescriptor, false, nullptr);
 
                 GetGraphicsCommandList()->SetGraphicsRoot32BitConstant(GenerateMipsRootSignatureSlots::eRootConstants, mipLevel - 1 - minMip, 0);
@@ -3052,7 +3052,7 @@ bool ImmediateContext::CPrepareUpdateSubresourcesHelper::InitializePlacementsAnd
                 }
 
                 // Note: D3D11 provides a subsampled box, so for planar formats, we need to use the plane format to avoid subsampling again
-                Resource::FillSubresourceDesc(ImmCtx.m_pDevice12.get(),
+                Resource::FillSubresourceDesc(ImmCtx.m_pDevice16.get(),
                                                 ImmCtx.GetOptions13().UnrestrictedBufferTextureCopyPitchSupported,
                                                 Dst.GetSubresourcePlacement(Subresource).Footprint.Format,
                                                 pDstBox->right - pDstBox->left,
@@ -3500,7 +3500,7 @@ void ImmediateContext::UpdateTileMappingsImpl(
         {
             CD3DX12_HEAP_DESC Desc(Allocation.m_Size, GetHeapProperties(D3D12_HEAP_TYPE_DEFAULT));
             
-            HRESULT hr = m_pDevice12->CreateHeap(
+            HRESULT hr = m_pDevice16->CreateHeap(
                 &Desc,
                 IID_PPV_ARGS(&spHeap) );
             ThrowFailure(hr);
@@ -4049,7 +4049,7 @@ void TRANSLATION_API ImmediateContext::ResizeTilePool(Resource* pResource, UINT6
         auto& Allocation = pResource->m_TilePool.m_Allocations.back();
 
         CD3DX12_HEAP_DESC HeapDesc(SizeDiff, GetHeapProperties(D3D12_HEAP_TYPE_DEFAULT));
-        HRESULT hr = m_pDevice12->CreateHeap(
+        HRESULT hr = m_pDevice16->CreateHeap(
             &HeapDesc,
             IID_PPV_ARGS(&Allocation.m_spUnderlyingBufferHeap) );
 
@@ -4469,7 +4469,7 @@ bool TRANSLATION_API ImmediateContext::MapDynamicTexture(Resource* pResource, UI
             creationArgsCopy.m_appDesc = AppResourceDesc(desc12, RESOURCE_USAGE_STAGING, cpuAccess, RESOURCE_BIND_NONE);
 
             UINT64 resourceSize = 0;
-            m_pDevice12->GetCopyableFootprints(&desc12, 0, creationArgsCopy.m_appDesc.NonOpaquePlaneCount(), 0, nullptr, nullptr, nullptr, &resourceSize);
+            m_pDevice16->GetCopyableFootprints(&desc12, 0, creationArgsCopy.m_appDesc.NonOpaquePlaneCount(), 0, nullptr, nullptr, nullptr, &resourceSize);
 
             creationArgsCopy.m_heapDesc = CD3DX12_HEAP_DESC(resourceSize, Resource::GetD3D12HeapType(RESOURCE_USAGE_STAGING, cpuAccess));
             creationArgsCopy.m_heapType = AllocatorHeapType::None;
@@ -5187,7 +5187,7 @@ static constexpr bool IsPossibleDecodeOutputFormat(DXGI_FORMAT format) noexcept
 //----------------------------------------------------------------------------------------------------------------------------------
 HRESULT TRANSLATION_API ImmediateContext::CheckFormatSupport(_Out_ D3D12_FEATURE_DATA_FORMAT_SUPPORT& formatData)
 {
-    HRESULT hr = m_pDevice12->CheckFeatureSupport(D3D12_FEATURE_FORMAT_SUPPORT, &formatData, sizeof(formatData));
+    HRESULT hr = m_pDevice16->CheckFeatureSupport1(D3D12_FEATURE_FORMAT_SUPPORT, &formatData, sizeof(formatData), D3D12_SDK_VERSION);
 
     if (SUCCEEDED(hr) &&
         (formatData.Support1 & D3D12_FORMAT_SUPPORT1_DECODER_OUTPUT) &&
@@ -5216,7 +5216,7 @@ void TRANSLATION_API ImmediateContext::CheckMultisampleQualityLevels(DXGI_FORMAT
     SupportStruct.Format = format;
     SupportStruct.SampleCount = SampleCount;
     SupportStruct.Flags = Flags;
-    HRESULT hr = m_pDevice12->CheckFeatureSupport(D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &SupportStruct, sizeof(SupportStruct));
+    HRESULT hr = m_pDevice16->CheckFeatureSupport1(D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &SupportStruct, sizeof(SupportStruct), D3D12_SDK_VERSION);
 
     *pNumQualityLevels = SUCCEEDED(hr) ? SupportStruct.NumQualityLevels : 0;
 }
@@ -5224,7 +5224,7 @@ void TRANSLATION_API ImmediateContext::CheckMultisampleQualityLevels(DXGI_FORMAT
 //----------------------------------------------------------------------------------------------------------------------------------
 void TRANSLATION_API ImmediateContext::CheckFeatureSupport(D3D12_FEATURE Feature, _Inout_updates_bytes_(FeatureSupportDataSize)void* pFeatureSupportData, UINT FeatureSupportDataSize)
 {
-    ThrowFailure(m_pDevice12->CheckFeatureSupport(Feature, pFeatureSupportData, FeatureSupportDataSize));
+    ThrowFailure(m_pDevice16->CheckFeatureSupport1(Feature, pFeatureSupportData, FeatureSupportDataSize, D3D12_SDK_VERSION));
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
@@ -5432,7 +5432,7 @@ void TRANSLATION_API ImmediateContext::CreateSharedNTHandle(_In_ Resource *pReso
 {
     assert(pResource->Parent()->IsNTHandleShared()); // Note: Not validated by this layer, but only called when this is true.
 
-    ThrowFailure(m_pDevice12->CreateSharedHandle(pResource->GetUnderlyingResource(), pSA, GENERIC_ALL, nullptr, pHandle));
+    ThrowFailure(m_pDevice16->CreateSharedHandle(pResource->GetUnderlyingResource(), pSA, GENERIC_ALL, nullptr, pHandle));
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
@@ -5577,7 +5577,7 @@ DXGI_FORMAT ImmediateContext::GetParentForFormat(DXGI_FORMAT format)
 //----------------------------------------------------------------------------------------------------------------------------------
 HRESULT TRANSLATION_API ImmediateContext::GetDeviceState()
 {
-    return m_pDevice12->GetDeviceRemovedReason();
+    return m_pDevice16->GetDeviceRemovedReason();
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------
@@ -5639,7 +5639,7 @@ unique_comptr<ID3D12Resource> ImmediateContext::AllocateHeap(UINT64 HeapSize, UI
     D3D12_HEAP_PROPERTIES Props = GetHeapProperties(GetD3D12HeapType(heapType));
     D3D12_RESOURCE_DESC Desc = CD3DX12_RESOURCE_DESC::Buffer(HeapSize, D3D12_RESOURCE_FLAG_NONE, alignment);
     unique_comptr<ID3D12Resource> spResource;
-    HRESULT hr = m_pDevice12->CreateCommittedResource(
+    HRESULT hr = m_pDevice16->CreateCommittedResource(
         &Props,
         D3D12_HEAP_FLAG_NONE,
         &Desc,
